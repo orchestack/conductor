@@ -2,7 +2,8 @@
 members = [
     "src/catalog",
     "src/conductor",
-    "src/score"
+    "src/score",
+    "src/ensemble-x"
 ]
 
 [workspace.package]

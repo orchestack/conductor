@@ -32,7 +32,7 @@ impl ScoreCompiler {
                 Statement::TableDecl(ct) => {
                     let mut table = Table {
                         uuid: Into::into(ct.uuid),
-                        name: ct.name.to_string(),
+                        name: ct.name.clone(),
                         columns: Default::default(),
                     };
                     for col in ct.columns {
@@ -43,7 +43,7 @@ impl ScoreCompiler {
                         });
                     }
 
-                    ns.tables.insert(ct.name.to_string(), table);
+                    ns.tables.insert(ct.name, table);
                 }
                 _ => return Err(CompileError::CompileError("tbd".into())),
             }

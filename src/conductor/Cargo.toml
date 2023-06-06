@@ -6,8 +6,13 @@ publish = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = []
+
 [dependencies]
 catalog = { path = "../catalog" }
 score = { path = "../score" }
+ensemble-x = { path = "../ensemble-x" }
 anyhow = "1.0.71"
 clap = { version = "4.3.2", features = ["derive"] }
+tokio = { version = "1.28.2", features = ["full"] }

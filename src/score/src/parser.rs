@@ -16,7 +16,7 @@ pub enum Statement {
 
 #[derive(Debug)]
 pub struct TableDecl {
-    pub name: Ident,
+    pub name: String,
     pub uuid: uuid::Uuid,
     pub columns: Vec<ColumnDef>,
     // pub constraints: Vec<TableConstraint>,
@@ -99,11 +99,12 @@ impl<'a> ScoreParser<'a> {
 
     fn parse_create_table(&mut self) -> Result<Statement, ParserError> {
         let name = self.parser.parse_identifier()?;
+
         let uuid = self.parse_table_uuid()?;
         let (columns, _constraints) = self.parse_columns()?;
 
         Ok(Statement::TableDecl(TableDecl {
-            name,
+            name: name.value,
             uuid,
             columns,
             // constraints,

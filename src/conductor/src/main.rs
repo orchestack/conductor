@@ -14,6 +14,7 @@ struct Args {
 enum Command {
     Compile(Compile),
     Diff(Diff),
+    Apply(Apply),
 }
 
 /// Compile a score definition into a catalog representation.
@@ -33,7 +34,33 @@ struct Diff {
     b: PathBuf,
 }
 
-fn main() -> Result<()> {
+/// Apply a score definition to an ensemble.
+#[derive(Parser, Debug)]
+struct Apply {
+    #[clap(name = "PATH", value_hint = ValueHint::FilePath)]
+    workspace: PathBuf,
+
+    #[clap(long, value_enum, default_value_t = Ensemble::DeltaLake)]
+    ensemble: Ensemble,
+
+    /// Commit the changes to the ensemble. By default, the changes are tried
+    /// in a dry-run mode.
+    #[clap(long)]
+    commit: bool,
+
+    /// Path to the Delta Lake ensemble.
+    #[clap(long, value_hint = ValueHint::FilePath)]
+    deltalake_path: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, clap::ValueEnum)]
+enum Ensemble {
+    #[clap(name = "deltalake")]
+    DeltaLake,
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
     let global_args = Args::parse();
     match global_args.command {
         Command::Compile(args) => {
@@ -70,6 +97,46 @@ fn main() -> Result<()> {
             for st in statements.into_iter() {
                 println!("{};", st);
             }
+        }
+        Command::Apply(args) => match args.ensemble {
+            Ensemble::DeltaLake => {
+                let workspace = args.workspace;
+                let deltalake_path = args.deltalake_path;
+                let commit = args.commit;
+                apply_deltalake(workspace, deltalake_path, commit).await?;
+            }
+        },
+    }
+
+    Ok(())
+}
+
+async fn apply_deltalake(
+    workspace: PathBuf,
+    deltalake_path: Option<PathBuf>,
+    commit: bool,
+) -> Result<()> {
+    use ensemble_x::EnsembleX;
+
+    let contents = std::fs::read_to_string(&workspace)?;
+    let mut parser = score::parser::ScoreParser::new(&contents)?;
+    let statements = parser
+        .parse()
+        .with_context(|| format!("while parsing {}", workspace.display()))?;
+    let compiler = score::compiler::ScoreCompiler {};
+    let catalog = compiler.compile(statements)?;
+
+    let ensemble =
+        EnsembleX::with_deltalake_path(deltalake_path.expect("deltalake_path must be provided"));
+    let from_catalog = ensemble.catalog()?;
+    let diff = catalog::diff::Diff {};
+    let statements = diff.diff(&from_catalog, &catalog)?;
+
+    for st in statements.into_iter() {
+        println!("{};", st);
+
+        if commit {
+            ensemble.apply(&st).await?;
         }
     }
 
