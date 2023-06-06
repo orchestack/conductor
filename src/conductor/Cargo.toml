@@ -1,0 +1,13 @@
+[package]
+name = "conductor"
+version = "0.1.0"
+edition = { workspace = true }
+publish = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+catalog = { path = "../catalog" }
+score = { path = "../score" }
+anyhow = "1.0.71"
+clap = { version = "4.3.2", features = ["derive"] }

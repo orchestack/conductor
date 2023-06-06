@@ -1,0 +1,9 @@
+[workspace]
+members = [
+    "src/catalog",
+    "src/conductor",
+    "src/score"
+]
+
+[workspace.package]
+edition = "2021"
