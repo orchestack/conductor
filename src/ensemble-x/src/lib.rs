@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 
-use catalog::{Catalog, Namespace};
+use catalog::{edit::Edit, Catalog, Namespace};
 use deltalake::{operations::create::CreateBuilder, SchemaDataType, SchemaField};
-use sqlparser::ast::Statement;
+use serde_json::json;
+
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -13,12 +14,15 @@ pub enum Error {
     DeltaTable(#[from] deltalake::DeltaTableError),
 }
 
+const METADATA_TABLE_UUID: &str = "conductor-table-uuid";
+const METADATA_COLUMN_UID: &str = "conductor-column-uid";
+
 pub struct EnsembleX {
     deltalake_path: PathBuf,
 }
 
 impl EnsembleX {
-    pub fn with_deltalake_path(path: PathBuf) -> Self {
+    pub fn with_path(path: PathBuf) -> Self {
         Self {
             deltalake_path: path,
         }
@@ -37,36 +41,39 @@ impl EnsembleX {
         Ok(catalog)
     }
 
-    pub async fn apply(&self, stmt: &Statement) -> Result<(), Error> {
-        match stmt {
-            Statement::CreateTable { name, columns, .. } => {
-                assert_eq!(
-                    name.0.len(),
-                    1,
-                    "qualified table names aren't supported by design"
-                );
-
-                let delta_columns = columns
+    pub async fn apply(&self, edit: &Edit) -> Result<(), Error> {
+        match edit {
+            Edit::CreateTable(table) => {
+                let delta_columns = table
+                    .columns
                     .iter()
                     .map(|c| {
-                        let name = &c.name.value;
                         let data_type = c.data_type.to_string();
+                        let col_meta = [(METADATA_COLUMN_UID.to_string(), json!(c.uid))].into();
 
-                        // TODO: column uid in metadata
                         SchemaField::new(
-                            name.to_string(),
+                            c.name.to_string(),
                             SchemaDataType::primitive(data_type),
                             true,
-                            Default::default(),
+                            col_meta,
                         )
                     })
                     .collect::<Vec<_>>();
 
-                // TODO: uuid in metadata
+                let mut table_metadata = serde_json::Map::new();
+                table_metadata.insert(METADATA_TABLE_UUID.to_string(), json!(table.uuid));
+
                 let _create = CreateBuilder::new()
-                    .with_table_name(name.0[0].value.clone())
+                    .with_table_name(table.name.clone())
                     .with_columns(delta_columns)
-                    .with_location(self.deltalake_path.join(name.to_string()).to_str().unwrap())
+                    .with_metadata(table_metadata)
+                    .with_location(
+                        self.deltalake_path
+                            .join(table.namespace.clone())
+                            .join(table.name.clone())
+                            .to_str()
+                            .unwrap(),
+                    )
                     .await?;
             }
             _ => {

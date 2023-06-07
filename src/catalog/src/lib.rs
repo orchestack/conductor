@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 pub mod diff;
+pub mod edit;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Catalog {
@@ -21,8 +22,9 @@ impl Namespace {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Table {
+    pub namespace: String,
     pub uuid: uuid::Uuid,
     pub name: String,
     pub columns: Vec<Column>,
@@ -34,7 +36,7 @@ impl Table {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Column {
     pub uid: u32,
     pub name: String,

@@ -12,7 +12,7 @@ use crate::{Result, ScoreError};
 
 #[derive(Debug)]
 pub enum Statement {
-    NamespaceDecl(Ident),
+    NamespaceDecl(String),
     TableDecl(TableDecl),
 }
 
@@ -50,7 +50,7 @@ impl<'a> ScoreParser<'a> {
     pub fn parse(&mut self) -> Result<VecDeque<Statement>> {
         let mut out = VecDeque::new();
         let namespace = self.parse_namespace_decl()?;
-        out.push_back(Statement::NamespaceDecl(namespace));
+        out.push_back(Statement::NamespaceDecl(namespace.value));
 
         loop {
             if self.parser.peek_token().token == Token::EOF {
@@ -93,7 +93,7 @@ impl<'a> ScoreParser<'a> {
             Token::Word(w) => match w.keyword {
                 Keyword::TABLE => {
                     self.parser.next_token();
-                    self.parse_create_table()
+                    self.parse_table_decl()
                 }
                 _ => self.expected("TABLE", self.peek_token()),
             },
@@ -101,9 +101,8 @@ impl<'a> ScoreParser<'a> {
         }
     }
 
-    fn parse_create_table(&mut self) -> Result<Statement> {
+    fn parse_table_decl(&mut self) -> Result<Statement> {
         let name = self.parser.parse_identifier()?;
-
         let uuid = self.parse_table_uuid()?;
         let (columns, _constraints) = self.parse_columns()?;
 

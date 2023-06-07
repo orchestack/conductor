@@ -1,12 +1,11 @@
 use std::collections::HashSet;
 
 use sqlparser::ast::{
-    helpers::stmt_create_table::CreateTableBuilder, AlterColumnOperation, AlterTableOperation,
-    ColumnDef, Ident, ObjectName, ObjectType, Statement,
+    AlterColumnOperation, AlterTableOperation, ColumnDef, Ident, ObjectName, ObjectType, Statement,
 };
 use thiserror::Error;
 
-use crate::{Catalog, Namespace, Table};
+use crate::{edit::Edit, Catalog, Namespace, Table};
 
 #[derive(Error, Debug)]
 pub enum DiffError {
@@ -17,51 +16,41 @@ pub enum DiffError {
 pub struct Diff {}
 
 impl Diff {
-    pub fn diff(&self, a: &Catalog, b: &Catalog) -> Result<Vec<Statement>, DiffError> {
+    pub fn diff(&self, a: &Catalog, b: &Catalog) -> Result<Vec<Edit>, DiffError> {
         self.diff_namespace(&a.root, &b.root)
     }
 
-    fn diff_namespace(&self, a: &Namespace, b: &Namespace) -> Result<Vec<Statement>, DiffError> {
+    fn diff_namespace(&self, a: &Namespace, b: &Namespace) -> Result<Vec<Edit>, DiffError> {
         assert_eq!(a.name, b.name, "namespace names must match");
+
         let a_table_ids = a.tables.values().map(|v| v.uuid).collect::<HashSet<_>>();
         let b_table_ids = b.tables.values().map(|v| v.uuid).collect::<HashSet<_>>();
 
-        let mut stmts = Vec::new();
+        let mut edits = Vec::<Edit>::new();
 
         // Tables that exist in A but not B, we need to drop them.
         let drop_tables = a_table_ids.difference(&b_table_ids).collect::<Vec<_>>();
         for table_id in drop_tables {
             let table = &a.get_table_by_uuid(*table_id).unwrap();
 
-            stmts.push(Statement::Drop {
-                object_type: ObjectType::Table,
-                if_exists: false,
-                names: vec![ObjectName(vec![identifier(&table.name)])],
-                cascade: false,
-                restrict: false,
-                purge: false,
-            });
+            edits.push(
+                Statement::Drop {
+                    object_type: ObjectType::Table,
+                    if_exists: false,
+                    names: vec![ObjectName(vec![identifier(&table.name)])],
+                    cascade: false,
+                    restrict: false,
+                    purge: false,
+                }
+                .into(),
+            );
         }
 
         // Tables that exist in B but not A, we need to create them.
         let create_tables = b_table_ids.difference(&a_table_ids).collect::<Vec<_>>();
         for table_id in create_tables {
             let table = b.get_table_by_uuid(*table_id).unwrap();
-            let mut columns = Vec::new();
-            for col in &table.columns {
-                columns.push(sqlparser::ast::ColumnDef {
-                    name: identifier(&col.name),
-                    data_type: col.data_type.clone(),
-                    collation: None,
-                    options: vec![],
-                });
-            }
-
-            stmts.push(
-                CreateTableBuilder::new(ObjectName(vec![identifier(&table.name)]))
-                    .columns(columns)
-                    .build(),
-            );
+            edits.push(Edit::CreateTable((*table).clone()));
         }
 
         // Tables that exist in both A and B, we need to diff them.
@@ -70,13 +59,13 @@ impl Diff {
             let a_table = a.get_table_by_uuid(*table_id).unwrap();
             let b_table = b.get_table_by_uuid(*table_id).unwrap();
 
-            stmts.extend(self.diff_table(a_table, b_table)?);
+            edits.extend(self.diff_table(a_table, b_table)?);
         }
 
-        Ok(stmts)
+        Ok(edits)
     }
 
-    fn diff_table(&self, a: &Table, b: &Table) -> Result<Vec<Statement>, DiffError> {
+    fn diff_table(&self, a: &Table, b: &Table) -> Result<Vec<Edit>, DiffError> {
         assert_eq!(a.uuid, b.uuid, "table uuids must match");
 
         let mut stmts = vec![];
@@ -85,12 +74,15 @@ impl Diff {
 
         if a.name != b.name {
             table_name = ObjectName(vec![identifier(&b.name)]);
-            stmts.push(Statement::AlterTable {
-                name: ObjectName(vec![identifier(&a.name)]),
-                operation: AlterTableOperation::RenameTable {
-                    table_name: table_name.clone(),
-                },
-            });
+            stmts.push(
+                Statement::AlterTable {
+                    name: ObjectName(vec![identifier(&a.name)]),
+                    operation: AlterTableOperation::RenameTable {
+                        table_name: table_name.clone(),
+                    },
+                }
+                .into(),
+            );
         }
 
         let a_column_ids = a.columns.iter().map(|v| v.uid).collect::<HashSet<_>>();
@@ -150,10 +142,13 @@ impl Diff {
         }
 
         for alter_op in alter_ops.drain(..) {
-            stmts.push(Statement::AlterTable {
-                name: table_name.clone(),
-                operation: alter_op,
-            });
+            stmts.push(
+                Statement::AlterTable {
+                    name: table_name.clone(),
+                    operation: alter_op,
+                }
+                .into(),
+            );
         }
 
         Ok(stmts)

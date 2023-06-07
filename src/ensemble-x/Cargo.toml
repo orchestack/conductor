@@ -9,5 +9,6 @@ publish = false
 [dependencies]
 catalog = { path = "../catalog" }
 deltalake = "0.12.0"
+serde_json = "1.0.96"
 sqlparser = "0.34.0"
 thiserror = "1.0.40"

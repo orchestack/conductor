@@ -14,16 +14,17 @@ impl ScoreCompiler {
 
         let mut ns = match stmts.pop_front().unwrap() {
             Statement::NamespaceDecl(name) => Namespace {
-                name: name.value,
+                name,
                 tables: Default::default(),
             },
-            _ => return Err(ScoreError::Error("expected namespace name first".into())),
+            _ => return Err(ScoreError::Error("expected namespace declaration".into())),
         };
 
         while let Some(stmt) = stmts.pop_front() {
             match stmt {
                 Statement::TableDecl(ct) => {
                     let mut table = Table {
+                        namespace: ns.name.clone(),
                         uuid: Into::into(ct.uuid),
                         name: ct.name.clone(),
                         columns: Default::default(),

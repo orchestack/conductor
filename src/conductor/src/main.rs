@@ -41,7 +41,7 @@ struct Apply {
     #[clap(name = "PATH", value_hint = ValueHint::FilePath)]
     score_path: PathBuf,
 
-    #[clap(long, value_enum, default_value_t = Ensemble::DeltaLake)]
+    #[clap(long, value_enum, default_value_t = Ensemble::EnsembleX)]
     ensemble: Ensemble,
 
     /// Commit the changes to the ensemble. By default, the changes are tried
@@ -49,15 +49,15 @@ struct Apply {
     #[clap(long)]
     commit: bool,
 
-    /// Path to the Delta Lake ensemble.
+    /// Path to the ensemble-x data.
     #[clap(long, value_hint = ValueHint::FilePath)]
-    deltalake_path: Option<PathBuf>,
+    x_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, clap::ValueEnum)]
 enum Ensemble {
-    #[clap(name = "deltalake")]
-    DeltaLake,
+    #[clap(name = "ensemble-x")]
+    EnsembleX,
 }
 
 #[tokio::main]
@@ -85,11 +85,11 @@ async fn main() -> Result<()> {
             }
         }
         Command::Apply(args) => match args.ensemble {
-            Ensemble::DeltaLake => {
+            Ensemble::EnsembleX => {
                 let workspace = args.score_path;
-                let deltalake_path = args.deltalake_path;
+                let data_path = args.x_path;
                 let commit = args.commit;
-                apply_deltalake(workspace, deltalake_path, commit).await?;
+                apply_ensemble_x(workspace, data_path, commit).await?;
             }
         },
     }
@@ -97,9 +97,9 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn apply_deltalake(
+async fn apply_ensemble_x(
     score_path: PathBuf,
-    deltalake_path: Option<PathBuf>,
+    data_path: Option<PathBuf>,
     commit: bool,
 ) -> Result<()> {
     use ensemble_x::EnsembleX;
@@ -107,17 +107,16 @@ async fn apply_deltalake(
     let score = Score::new(score_path);
     let catalog = score.catalog()?;
 
-    let ensemble =
-        EnsembleX::with_deltalake_path(deltalake_path.expect("deltalake_path must be provided"));
+    let ensemble = EnsembleX::with_path(data_path.expect("data_path must be provided"));
     let from_catalog = ensemble.catalog()?;
     let diff = catalog::diff::Diff {};
-    let statements = diff.diff(&from_catalog, &catalog)?;
+    let edits = diff.diff(&from_catalog, &catalog)?;
 
-    for st in statements.into_iter() {
-        println!("{};", st);
+    for edit in edits.into_iter() {
+        println!("{};", edit);
 
         if commit {
-            ensemble.apply(&st).await?;
+            ensemble.apply(&edit).await?;
         }
     }
 
