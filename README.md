@@ -80,6 +80,15 @@ on top of Apache DataFusion and Delta Lake.
 
 ## Contributing
 
+Install git pre-commit hooks:
+
 ```sh
 ln -s ../../tools/pre-commit .git/hooks/pre-commit
+```
+
+Managing dependencies with [hakari](https://docs.rs/cargo-hakari/):
+
+```sh
+cargo hakari generate
+cargo hakari manage-deps
 ```

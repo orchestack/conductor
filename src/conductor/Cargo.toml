@@ -16,3 +16,4 @@ ensemble-x = { path = "../ensemble-x" }
 anyhow = "1.0.71"
 clap = { version = "4.3.2", features = ["derive"] }
 tokio = { version = "1.28.2", features = ["full"] }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }

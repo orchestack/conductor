@@ -1,9 +1,11 @@
 [workspace]
+resolver = "2"
 members = [
     "src/catalog",
     "src/conductor",
     "src/score",
-    "src/ensemble-x"
+    "src/ensemble-x",
+    "src/workspace-hack"
 ]
 
 [workspace.package]
