@@ -5,7 +5,7 @@
 >
 > 👋 If you are interested in participating as an early **design partner** or
 > would like to **request a demo**, please reach out to
-> [hello@orchestack.com](mailto:hello@orchestack.com).
+> [**hello@orchestack.com**](mailto:hello@orchestack.com).
 
 ## User guide
 
@@ -59,9 +59,9 @@ example, the following differences can be spotted:
 
 ### Ensembles
 
-To go from SD (score definition) to a real DBMS an adapter that can translate
-between conductor's semantics to a particular DBMS. These adapters are called
-"ensembles" in conductor's context.
+To go from SD (score definition) to a real DBMS, an adapter that can translate
+between conductor's semantics to a particular DBMS is required. These adapters
+are called "ensembles".
 
 At this moment, only a single ensemble implementation is planned. It is built
 on top of Apache DataFusion and Delta Lake.
@@ -76,7 +76,7 @@ on top of Apache DataFusion and Delta Lake.
 - [ ] AuthNZ (security policies design)
 - [ ] Support for modifying column types, nullability, etc.
 - [ ] Basic dataflow support
-- [ ] [Have an idea? Open an issue.](https://github.com/orchestack/conductor/issues/new)
+- [ ] [**Have an idea? Open an issue.**](https://github.com/orchestack/conductor/issues/new)
 
 ## Contributing
 
