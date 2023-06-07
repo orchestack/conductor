@@ -40,6 +40,12 @@ impl EnsembleX {
     pub async fn apply(&self, stmt: &Statement) -> Result<(), Error> {
         match stmt {
             Statement::CreateTable { name, columns, .. } => {
+                assert_eq!(
+                    name.0.len(),
+                    1,
+                    "qualified table names aren't supported by design"
+                );
+
                 let delta_columns = columns
                     .iter()
                     .map(|c| {

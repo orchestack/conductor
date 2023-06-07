@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::{Parser, Subcommand, ValueHint};
+use score::Score;
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -21,7 +22,7 @@ enum Command {
 #[derive(Parser, Debug)]
 struct Compile {
     #[clap(name = "PATH", value_hint = ValueHint::FilePath)]
-    workspace: PathBuf,
+    score_path: PathBuf,
 }
 
 /// Show the difference between two score definitions.
@@ -38,7 +39,7 @@ struct Diff {
 #[derive(Parser, Debug)]
 struct Apply {
     #[clap(name = "PATH", value_hint = ValueHint::FilePath)]
-    workspace: PathBuf,
+    score_path: PathBuf,
 
     #[clap(long, value_enum, default_value_t = Ensemble::DeltaLake)]
     ensemble: Ensemble,
@@ -64,33 +65,18 @@ async fn main() -> Result<()> {
     let global_args = Args::parse();
     match global_args.command {
         Command::Compile(args) => {
-            let workspace = args.workspace;
-            let contents = std::fs::read_to_string(&workspace)?;
-            let mut parser = score::parser::ScoreParser::new(&contents)?;
-            let statements = parser
-                .parse()
-                .with_context(|| format!("while parsing {}", workspace.display()))?;
-            let compiler = score::compiler::ScoreCompiler {};
-            let catalog = compiler.compile(statements)?;
+            let score = Score::new(args.score_path);
+            let catalog = score.catalog()?;
 
             println!("Catalog: {:#?}", catalog);
         }
         Command::Diff(args) => {
-            let a = args.a;
-            let b = args.b;
-            let a_contents = std::fs::read_to_string(&a)?;
-            let b_contents = std::fs::read_to_string(&b)?;
-            let mut a_parser = score::parser::ScoreParser::new(&a_contents)?;
-            let mut b_parser = score::parser::ScoreParser::new(&b_contents)?;
-            let a_statements = a_parser
-                .parse()
-                .with_context(|| format!("while parsing {}", a.display()))?;
-            let b_statements = b_parser
-                .parse()
-                .with_context(|| format!("while parsing {}", b.display()))?;
-            let compiler = score::compiler::ScoreCompiler {};
-            let a_catalog = compiler.compile(a_statements)?;
-            let b_catalog = compiler.compile(b_statements)?;
+            let a_score = Score::new(args.a);
+            let a_catalog = a_score.catalog()?;
+
+            let b_score = Score::new(args.b);
+            let b_catalog = b_score.catalog()?;
+
             let diff = catalog::diff::Diff {};
             let statements = diff.diff(&a_catalog, &b_catalog)?;
 
@@ -100,7 +86,7 @@ async fn main() -> Result<()> {
         }
         Command::Apply(args) => match args.ensemble {
             Ensemble::DeltaLake => {
-                let workspace = args.workspace;
+                let workspace = args.score_path;
                 let deltalake_path = args.deltalake_path;
                 let commit = args.commit;
                 apply_deltalake(workspace, deltalake_path, commit).await?;
@@ -112,19 +98,14 @@ async fn main() -> Result<()> {
 }
 
 async fn apply_deltalake(
-    workspace: PathBuf,
+    score_path: PathBuf,
     deltalake_path: Option<PathBuf>,
     commit: bool,
 ) -> Result<()> {
     use ensemble_x::EnsembleX;
 
-    let contents = std::fs::read_to_string(&workspace)?;
-    let mut parser = score::parser::ScoreParser::new(&contents)?;
-    let statements = parser
-        .parse()
-        .with_context(|| format!("while parsing {}", workspace.display()))?;
-    let compiler = score::compiler::ScoreCompiler {};
-    let catalog = compiler.compile(statements)?;
+    let score = Score::new(score_path);
+    let catalog = score.catalog()?;
 
     let ensemble =
         EnsembleX::with_deltalake_path(deltalake_path.expect("deltalake_path must be provided"));

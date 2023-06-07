@@ -4,9 +4,11 @@ use sqlparser::{
     ast::{Ident, TableConstraint, Value},
     dialect::GenericDialect,
     keywords::Keyword,
-    parser::{Parser, ParserError},
+    parser::Parser,
     tokenizer::{Token, TokenWithLocation, Tokenizer},
 };
+
+use crate::{Result, ScoreError};
 
 #[derive(Debug)]
 pub enum Statement {
@@ -33,17 +35,19 @@ pub struct ScoreParser<'a> {
 }
 
 impl<'a> ScoreParser<'a> {
-    pub fn new(sql: &str) -> Result<Self, ParserError> {
+    pub fn new(sql: &str) -> Result<Self> {
         let dialect = &GenericDialect {};
         let mut tokenizer = Tokenizer::new(dialect, sql);
-        let tokens = tokenizer.tokenize_with_location()?;
+        let tokens = tokenizer
+            .tokenize_with_location()
+            .map_err(|e| ScoreError::ParserError(e.into()))?;
 
         Ok(Self {
             parser: Parser::new(dialect).with_tokens_with_locations(tokens),
         })
     }
 
-    pub fn parse(&mut self) -> Result<VecDeque<Statement>, ParserError> {
+    pub fn parse(&mut self) -> Result<VecDeque<Statement>> {
         let mut out = VecDeque::new();
         let namespace = self.parse_namespace_decl()?;
         out.push_back(Statement::NamespaceDecl(namespace));
@@ -64,7 +68,7 @@ impl<'a> ScoreParser<'a> {
         Ok(out)
     }
 
-    fn parse_namespace_decl(&mut self) -> Result<Ident, ParserError> {
+    fn parse_namespace_decl(&mut self) -> Result<Ident> {
         match self.parser.peek_token().token {
             Token::Word(w) => match w.value.to_lowercase().as_str() {
                 "namespace" => {
@@ -84,7 +88,7 @@ impl<'a> ScoreParser<'a> {
         }
     }
 
-    fn parse_statement(&mut self) -> Result<Statement, ParserError> {
+    fn parse_statement(&mut self) -> Result<Statement> {
         match self.peek_token().token {
             Token::Word(w) => match w.keyword {
                 Keyword::TABLE => {
@@ -97,7 +101,7 @@ impl<'a> ScoreParser<'a> {
         }
     }
 
-    fn parse_create_table(&mut self) -> Result<Statement, ParserError> {
+    fn parse_create_table(&mut self) -> Result<Statement> {
         let name = self.parser.parse_identifier()?;
 
         let uuid = self.parse_table_uuid()?;
@@ -111,7 +115,7 @@ impl<'a> ScoreParser<'a> {
         }))
     }
 
-    fn parse_table_uuid(&mut self) -> Result<uuid::Uuid, ParserError> {
+    fn parse_table_uuid(&mut self) -> Result<uuid::Uuid> {
         match self.parser.peek_token().token {
             Token::Word(w) => match w.value.to_lowercase().as_str() {
                 "uuid" => {
@@ -132,7 +136,7 @@ impl<'a> ScoreParser<'a> {
     }
 
     // This is a copy of the equivalent implementation in sqlparser.
-    fn parse_columns(&mut self) -> Result<(Vec<ColumnDef>, Vec<TableConstraint>), ParserError> {
+    fn parse_columns(&mut self) -> Result<(Vec<ColumnDef>, Vec<TableConstraint>)> {
         let mut columns = vec![];
         let mut constraints = vec![];
         if !self.parser.consume_token(&Token::LParen) || self.parser.consume_token(&Token::RParen) {
@@ -160,7 +164,7 @@ impl<'a> ScoreParser<'a> {
         Ok((columns, constraints))
     }
 
-    fn parse_column_def(&mut self) -> Result<ColumnDef, ParserError> {
+    fn parse_column_def(&mut self) -> Result<ColumnDef> {
         let name = self.parser.parse_identifier()?;
         let data_type = self.parser.parse_data_type()?;
         // let collation = if self.parser.parse_keyword(Keyword::COLLATE) {
@@ -200,7 +204,7 @@ impl<'a> ScoreParser<'a> {
         })
     }
 
-    fn parse_column_def_uid(&mut self) -> Result<u32, ParserError> {
+    fn parse_column_def_uid(&mut self) -> Result<u32> {
         match self.parser.peek_token().token {
             Token::Word(w) => match w.value.to_lowercase().as_str() {
                 "uid" => {
@@ -208,7 +212,7 @@ impl<'a> ScoreParser<'a> {
                     match self.parser.parse_value()? {
                         sqlparser::ast::Value::Number(num, _) => num
                             .parse::<u32>()
-                            .map_err(|e| ParserError::ParserError(e.to_string())),
+                            .map_err(|e| ScoreError::Error(e.to_string())),
                         _ => self.expected("literal number", self.peek_token()),
                     }
                 }
@@ -222,9 +226,9 @@ impl<'a> ScoreParser<'a> {
         self.parser.peek_token()
     }
 
-    fn expected<T>(&self, expected: &str, found: TokenWithLocation) -> Result<T, ParserError> {
-        Err(ParserError::ParserError(format!(
-            "Expected {expected}, found: {found} at {}:{}",
+    fn expected<T>(&self, expected: &str, found: TokenWithLocation) -> Result<T> {
+        Err(ScoreError::Error(format!(
+            "Expected {expected}, found: {found} at Line: {}, Column {}",
             found.location.line, found.location.column,
         )))
     }
