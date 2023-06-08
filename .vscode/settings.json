@@ -1,4 +1,4 @@
 {
   "rust-analyzer.cargo.features": [],
-  "cSpell.words": ["deltalake"]
+  "cSpell.words": ["deltalake", "Readline"]
 }

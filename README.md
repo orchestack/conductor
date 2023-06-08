@@ -73,6 +73,7 @@ on top of Apache DataFusion and Delta Lake.
   of scope at this stage))
 - [ ] **In progress** Fully functioning ensemble (w/ support for reading and
   writing DeltaLake data)
+- [ ] **In progress** Interactive SQL sessions
 - [ ] AuthNZ (security policies design)
 - [ ] Support for modifying column types, nullability, etc.
 - [ ] Basic dataflow support
