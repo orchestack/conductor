@@ -8,7 +8,7 @@ publish = false
 
 [dependencies]
 serde = { version = "1.0.163", features = ["derive"] }
-sqlparser = { version = "0.34.0", features = ["serde"] }
+sqlparser = { version = "0.33.0", features = ["serde"] }
 thiserror = "1.0.40"
 uuid = { version = "1.3.3", features = ["serde"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }

@@ -18,7 +18,7 @@ const METADATA_TABLE_UUID: &str = "conductor-table-uuid";
 const METADATA_COLUMN_UID: &str = "conductor-column-uid";
 
 pub struct EnsembleX {
-    deltalake_path: PathBuf,
+    pub deltalake_path: PathBuf,
 }
 
 impl EnsembleX {
@@ -29,8 +29,6 @@ impl EnsembleX {
     }
 
     pub fn catalog(&self) -> Result<Catalog, Error> {
-        println!("{}", self.deltalake_path.display());
-
         let catalog = Catalog {
             root: Namespace {
                 name: "northwind".to_string(),
@@ -48,15 +46,9 @@ impl EnsembleX {
                     .columns
                     .iter()
                     .map(|c| {
-                        let data_type = c.data_type.to_string();
                         let col_meta = [(METADATA_COLUMN_UID.to_string(), json!(c.uid))].into();
 
-                        SchemaField::new(
-                            c.name.to_string(),
-                            SchemaDataType::primitive(data_type),
-                            true,
-                            col_meta,
-                        )
+                        SchemaField::new(c.name.to_string(), map_type(&c.data_type), true, col_meta)
                     })
                     .collect::<Vec<_>>();
 
@@ -82,5 +74,13 @@ impl EnsembleX {
         }
 
         Ok(())
+    }
+}
+
+fn map_type(dt: &sqlparser::ast::DataType) -> SchemaDataType {
+    match dt {
+        sqlparser::ast::DataType::Integer(_) => SchemaDataType::primitive("integer".to_string()),
+        sqlparser::ast::DataType::Text => SchemaDataType::primitive("string".to_string()),
+        _ => todo!(),
     }
 }

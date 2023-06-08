@@ -8,7 +8,7 @@ publish = false
 
 [dependencies]
 catalog = { path = "../catalog" }
-sqlparser = "0.34.0"
+sqlparser = "0.33.0"
 thiserror = "1.0.40"
 uuid = "1.3.3"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }

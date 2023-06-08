@@ -18,6 +18,6 @@ anyhow = "1.0.71"
 clap = { version = "4.3.2", features = ["derive"] }
 tokio = { version = "1.28.2", features = ["full"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
-arrow-array = "40"
+arrow-array = "39"
 rustyline = "11.0.0"
-arrow-cast = { version = "40", features = ["prettyprint"] }
+arrow-cast = { version = "39", features = ["prettyprint"] }

@@ -147,8 +147,8 @@ async fn apply_ensemble_x(
 async fn sql_ensemble_x(data_path: Option<PathBuf>) -> Result<()> {
     use ensemble_x::EnsembleX;
 
-    let _ensemble = EnsembleX::with_path(data_path.expect("data_path must be provided"));
-    let session = SqlSession::new();
+    let ensemble = EnsembleX::with_path(data_path.expect("data_path must be provided"));
+    let session = SqlSession::new(ensemble).await?;
 
     let mut rl = rustyline::DefaultEditor::new()?;
 
