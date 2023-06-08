@@ -5,12 +5,12 @@ use serde::{Deserialize, Serialize};
 pub mod diff;
 pub mod edit;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Catalog {
     pub root: Namespace,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Namespace {
     pub name: String,
     pub tables: HashMap<String, Table>,

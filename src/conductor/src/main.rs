@@ -95,8 +95,12 @@ async fn main() -> Result<()> {
             let diff = catalog::diff::Diff {};
             let statements = diff.diff(&a_catalog, &b_catalog)?;
 
-            for st in statements.into_iter() {
-                println!("{};", st);
+            if statements.is_empty() {
+                println!("No changes.");
+            } else {
+                for st in statements.into_iter() {
+                    println!("{};", st);
+                }
             }
         }
         Command::Apply(args) => match args.ensemble {
@@ -128,10 +132,15 @@ async fn apply_ensemble_x(
     let score = Score::new(score_path);
     let catalog = score.catalog()?;
 
-    let ensemble = EnsembleX::with_path(data_path.expect("data_path must be provided"));
+    let mut ensemble = EnsembleX::with_path(data_path.expect("data_path must be provided")).await?;
     let from_catalog = ensemble.catalog()?;
     let diff = catalog::diff::Diff {};
     let edits = diff.diff(&from_catalog, &catalog)?;
+
+    if edits.is_empty() {
+        println!("No changes.");
+        return Ok(());
+    }
 
     for edit in edits.into_iter() {
         println!("{};", edit);
@@ -147,10 +156,18 @@ async fn apply_ensemble_x(
 async fn sql_ensemble_x(data_path: Option<PathBuf>) -> Result<()> {
     use ensemble_x::EnsembleX;
 
-    let ensemble = EnsembleX::with_path(data_path.expect("data_path must be provided"));
-    let session = SqlSession::new(ensemble).await?;
+    let ensemble = EnsembleX::with_path(data_path.expect("data_path must be provided")).await?;
+    let mut session = SqlSession::new(ensemble).await?;
 
     let mut rl = rustyline::DefaultEditor::new()?;
+    let rl_history_path = dirs::config_dir().unwrap().join(".conductor-sql-history");
+    if !rl_history_path.exists() {
+        std::fs::File::create(&rl_history_path)?;
+    }
+
+    if let Err(err) = rl.load_history(&rl_history_path) {
+        println!("Failed to load previous history: {}", err);
+    }
 
     let mut requested_interrupt = false;
     loop {
@@ -165,6 +182,7 @@ async fn sql_ensemble_x(data_path: Option<PathBuf>) -> Result<()> {
                 }
 
                 rl.add_history_entry(&line)?;
+                rl.append_history(&rl_history_path).ok();
                 match session.execute(&line).await {
                     Ok(result) => pretty::print_batches(&result)?,
                     Err(err) => {

@@ -14,3 +14,4 @@ thiserror = "1.0.40"
 ensemble-x = { path = "../ensemble-x" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 deltalake = { version = "0.12.0", features = ["datafusion"] }
+futures = "0.3.28"

@@ -29,6 +29,7 @@ phf_shared = { version = "0.11" }
 rand = { version = "0.8", features = ["small_rng"] }
 rand_core = { version = "0.6", default-features = false, features = ["std"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
+sqlparser = { version = "0.33", features = ["serde", "visitor"] }
 tokio = { version = "1", features = ["full"] }
 uuid = { version = "1", features = ["serde", "v4"] }
 

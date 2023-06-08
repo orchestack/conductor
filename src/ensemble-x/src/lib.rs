@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use catalog::{edit::Edit, Catalog, Namespace};
+use catalog::{edit::Edit, Catalog};
 use deltalake::{operations::create::CreateBuilder, SchemaDataType, SchemaField};
 use serde_json::json;
 
@@ -8,10 +8,12 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("ensemble error: {0}")]
-    Error(String),
+    #[error("io error: {0}")]
+    IoError(#[from] std::io::Error),
     #[error("delta table error: {0}")]
     DeltaTable(#[from] deltalake::DeltaTableError),
+    #[error("ensemble error: {0}")]
+    Error(String),
 }
 
 const METADATA_TABLE_UUID: &str = "conductor-table-uuid";
@@ -19,27 +21,41 @@ const METADATA_COLUMN_UID: &str = "conductor-column-uid";
 
 pub struct EnsembleX {
     pub deltalake_path: PathBuf,
+    pub catalog: Catalog,
 }
 
 impl EnsembleX {
-    pub fn with_path(path: PathBuf) -> Self {
-        Self {
-            deltalake_path: path,
+    pub async fn with_path(path: PathBuf) -> Result<Self, Error> {
+        if !path.join("_conductor_catalog.json").exists() {
+            let catalog = Catalog {
+                root: catalog::Namespace {
+                    name: "northwind".to_string(),
+                    tables: Default::default(),
+                },
+            };
+
+            serde_json::to_writer(
+                std::fs::File::create(path.join("_conductor_catalog.json"))?,
+                &catalog,
+            )
+            .map_err(|e| Error::Error(e.to_string()))?;
         }
+
+        let catalog =
+            serde_json::from_reader(std::fs::File::open(path.join("_conductor_catalog.json"))?)
+                .map_err(|e| Error::Error(e.to_string()))?;
+
+        Ok(Self {
+            deltalake_path: path,
+            catalog,
+        })
     }
 
     pub fn catalog(&self) -> Result<Catalog, Error> {
-        let catalog = Catalog {
-            root: Namespace {
-                name: "northwind".to_string(),
-                tables: Default::default(),
-            },
-        };
-
-        Ok(catalog)
+        Ok(self.catalog.clone())
     }
 
-    pub async fn apply(&self, edit: &Edit) -> Result<(), Error> {
+    pub async fn apply(&mut self, edit: &Edit) -> Result<(), Error> {
         match edit {
             Edit::CreateTable(table) => {
                 let delta_columns = table
@@ -67,11 +83,28 @@ impl EnsembleX {
                             .unwrap(),
                     )
                     .await?;
+
+                self.catalog
+                    .root
+                    .tables
+                    .insert(table.name.clone(), table.clone());
+
+                self.commit().await?
             }
             _ => {
                 todo!()
             }
         }
+
+        Ok(())
+    }
+
+    async fn commit(&mut self) -> Result<(), Error> {
+        serde_json::to_writer(
+            std::fs::File::create(self.deltalake_path.join("_conductor_catalog.json"))?,
+            &self.catalog,
+        )
+        .map_err(|e| Error::Error(e.to_string()))?;
 
         Ok(())
     }
