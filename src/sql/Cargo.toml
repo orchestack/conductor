@@ -8,5 +8,6 @@ publish = false
 
 [dependencies]
 datafusion = "26.0.0"
+sqlparser = "0.34.0"
 thiserror = "1.0.40"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
