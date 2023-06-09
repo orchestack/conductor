@@ -22,6 +22,11 @@ const METADATA_COLUMN_UID: &str = "conductor-column-uid";
 pub struct EnsembleX {
     pub deltalake_path: PathBuf,
     pub catalog: Catalog,
+    pending_actions: Vec<Action>,
+}
+
+enum Action {
+    CreateTable(CreateBuilder),
 }
 
 impl EnsembleX {
@@ -48,6 +53,7 @@ impl EnsembleX {
         Ok(Self {
             deltalake_path: path,
             catalog,
+            pending_actions: vec![],
         })
     }
 
@@ -71,7 +77,7 @@ impl EnsembleX {
                 let mut table_metadata = serde_json::Map::new();
                 table_metadata.insert(METADATA_TABLE_UUID.to_string(), json!(table.uuid));
 
-                let _create = CreateBuilder::new()
+                let create_builder = CreateBuilder::new()
                     .with_table_name(table.name.clone())
                     .with_columns(delta_columns)
                     .with_metadata(table_metadata)
@@ -81,15 +87,15 @@ impl EnsembleX {
                             .join(table.name.clone())
                             .to_str()
                             .unwrap(),
-                    )
-                    .await?;
+                    );
 
                 self.catalog
                     .root
                     .tables
                     .insert(table.name.clone(), table.clone());
 
-                self.commit().await?
+                self.pending_actions
+                    .push(Action::CreateTable(create_builder));
             }
             _ => {
                 todo!()
@@ -99,7 +105,15 @@ impl EnsembleX {
         Ok(())
     }
 
-    async fn commit(&mut self) -> Result<(), Error> {
+    pub async fn commit(&mut self) -> Result<(), Error> {
+        for action in self.pending_actions.drain(..) {
+            match action {
+                Action::CreateTable(create_builder) => {
+                    create_builder.await?;
+                }
+            }
+        }
+
         serde_json::to_writer(
             std::fs::File::create(self.deltalake_path.join("_conductor_catalog.json"))?,
             &self.catalog,

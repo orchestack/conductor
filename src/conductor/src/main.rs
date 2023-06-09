@@ -144,10 +144,11 @@ async fn apply_ensemble_x(
 
     for edit in edits.into_iter() {
         println!("{};", edit);
+        ensemble.apply(&edit).await?;
+    }
 
-        if commit {
-            ensemble.apply(&edit).await?;
-        }
+    if commit {
+        ensemble.commit().await?;
     }
 
     Ok(())
