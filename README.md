@@ -63,8 +63,8 @@ To go from SD (score definition) to a real DBMS, an adapter that can translate
 between conductor's semantics to a particular DBMS is required. These adapters
 are called "ensembles".
 
-At this moment, only a single ensemble implementation is planned. It is built
-on top of Apache DataFusion and Delta Lake.
+At this moment, only a single ensemble implementation is planned. It is being
+built on top of Apache DataFusion and Delta Lake.
 
 ## Roadmap
 
