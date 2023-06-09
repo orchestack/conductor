@@ -16,8 +16,8 @@ pub enum Error {
     Error(String),
 }
 
-const METADATA_TABLE_UUID: &str = "conductor-table-uuid";
-const METADATA_COLUMN_UID: &str = "conductor-column-uid";
+const METADATA_TABLE_UUID: &str = "orchestack.table-uuid";
+const METADATA_COLUMN_UID: &str = "orchestack.column-uid";
 
 pub struct EnsembleX {
     pub deltalake_path: PathBuf,
