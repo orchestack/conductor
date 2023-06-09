@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use sqlparser::ast::{
-    AlterColumnOperation, AlterTableOperation, ColumnDef, Ident, ObjectName, ObjectType, Statement,
+    AlterColumnOperation, AlterTableOperation, ColumnDef, Ident, ObjectName, Statement,
 };
 use thiserror::Error;
 
@@ -32,18 +32,7 @@ impl Diff {
         let drop_tables = a_table_ids.difference(&b_table_ids).collect::<Vec<_>>();
         for table_id in drop_tables {
             let table = &a.get_table_by_uuid(*table_id).unwrap();
-
-            edits.push(
-                Statement::Drop {
-                    object_type: ObjectType::Table,
-                    if_exists: false,
-                    names: vec![ObjectName(vec![identifier(&table.name)])],
-                    cascade: false,
-                    restrict: false,
-                    purge: false,
-                }
-                .into(),
-            );
+            edits.push(Edit::DropTable((*table).clone()));
         }
 
         // Tables that exist in B but not A, we need to create them.

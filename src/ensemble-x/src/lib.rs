@@ -97,8 +97,17 @@ impl EnsembleX {
                 self.pending_actions
                     .push(Action::CreateTable(create_builder));
             }
-            _ => {
-                todo!()
+            Edit::DropTable(table) => {
+                let table_path = self
+                    .deltalake_path
+                    .join(table.namespace.clone())
+                    .join(table.name.clone());
+
+                std::fs::remove_dir_all(table_path)?;
+                self.catalog.root.tables.remove(&table.name);
+            }
+            edit => {
+                todo!("edit not implemented yet: {:?}", edit);
             }
         }
 
