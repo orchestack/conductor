@@ -1,8 +1,9 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 use arrow_cast::pretty;
 use clap::{Parser, Subcommand, ValueHint};
+use ensemble_x::storage::ObjectStore;
 use rustyline::{self, error::ReadlineError};
 use score::Score;
 use sql::SqlSession;
@@ -54,8 +55,9 @@ struct Apply {
     commit: bool,
 
     /// Path to the ensemble-x data.
-    #[clap(long, value_hint = ValueHint::FilePath)]
-    x_path: Option<PathBuf>,
+    /// Can be s3://, gs:// or just a local path.
+    #[clap(long)]
+    x_path: Option<String>,
 }
 
 /// Start a SQL session.
@@ -65,8 +67,9 @@ struct Sql {
     ensemble: Ensemble,
 
     /// Path to the ensemble-x data.
-    #[clap(long, value_hint = ValueHint::FilePath)]
-    x_path: Option<PathBuf>,
+    /// Can be s3://, gs:// or just a local path.
+    #[clap(long)]
+    x_path: Option<String>,
 }
 
 #[derive(Debug, Clone, clap::ValueEnum)]
@@ -77,7 +80,10 @@ enum Ensemble {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    tracing_subscriber::fmt::init();
+
     let global_args = Args::parse();
+
     match global_args.command {
         Command::Compile(args) => {
             let score = Score::new(args.score_path);
@@ -124,7 +130,7 @@ async fn main() -> Result<()> {
 
 async fn apply_ensemble_x(
     score_path: PathBuf,
-    data_path: Option<PathBuf>,
+    data_path: Option<String>,
     commit: bool,
 ) -> Result<()> {
     use ensemble_x::EnsembleX;
@@ -132,7 +138,11 @@ async fn apply_ensemble_x(
     let score = Score::new(score_path);
     let catalog = score.catalog()?;
 
-    let mut ensemble = EnsembleX::with_path(data_path.expect("data_path must be provided")).await?;
+    let storage = object_store::local::LocalFileSystem::new_with_prefix(data_path.unwrap())?;
+    let store = ObjectStore::new(Arc::new(storage));
+    let location = url::Url::parse("ensemble-x://")?;
+
+    let mut ensemble = EnsembleX::new(store, location).await?;
     let from_catalog = ensemble.catalog()?;
     let diff = catalog::diff::Diff {};
     let edits = diff.diff(&from_catalog, &catalog)?;
@@ -154,10 +164,14 @@ async fn apply_ensemble_x(
     Ok(())
 }
 
-async fn sql_ensemble_x(data_path: Option<PathBuf>) -> Result<()> {
+async fn sql_ensemble_x(data_path: Option<String>) -> Result<()> {
     use ensemble_x::EnsembleX;
 
-    let ensemble = EnsembleX::with_path(data_path.expect("data_path must be provided")).await?;
+    let storage = object_store::local::LocalFileSystem::new_with_prefix(data_path.unwrap())?;
+    let store = ObjectStore::new(Arc::new(storage));
+    let location = url::Url::parse("ensemble-x://")?;
+
+    let ensemble = EnsembleX::new(store, location).await?;
     let mut session = SqlSession::new(ensemble).await?;
 
     let mut rl = rustyline::DefaultEditor::new()?;

@@ -1,22 +1,15 @@
 use std::{collections::HashMap, sync::Arc};
 
-use async_trait::async_trait;
 use datafusion::{
-    arrow::{datatypes::SchemaRef, record_batch::RecordBatch},
+    arrow::record_batch::RecordBatch,
     catalog::schema::{MemorySchemaProvider, SchemaProvider},
-    datasource::TableProvider,
     execution::{context::SessionState, runtime_env::RuntimeEnv},
-    logical_expr::{LogicalPlan, TableProviderFilterPushDown, TableType},
-    physical_plan::{ExecutionPlan, Statistics},
-    prelude::{DataFrame, Expr, SessionConfig},
+    logical_expr::LogicalPlan,
+    prelude::{DataFrame, SessionConfig},
     sql::parser::Statement as DFStatement,
 };
-use deltalake::{
-    writer::{DeltaWriter, RecordBatchWriter},
-    DeltaTable,
-};
-use ensemble_x::EnsembleX;
-use futures::lock::Mutex;
+use ensemble_x::{EnsembleX, TableX};
+
 use thiserror::Error;
 
 mod parser;
@@ -55,19 +48,7 @@ impl SqlSession {
         let catalog = ensemble.catalog()?;
         let schema_provider = Arc::new(MemorySchemaProvider::new());
         for table in catalog.root.tables.values() {
-            let x_table = Arc::new(TableX {
-                inner: Mutex::new(
-                    deltalake::open_table(
-                        ensemble
-                            .deltalake_path
-                            .join(&catalog.root.name)
-                            .join(&table.name)
-                            .to_str()
-                            .unwrap(),
-                    )
-                    .await?,
-                ),
-            });
+            let x_table = ensemble.table(&table.namespace, &table.name).await?;
 
             tables.insert(table.name.clone(), x_table.clone());
             schema_provider.register_table(table.name.clone(), x_table)?;
@@ -156,76 +137,5 @@ impl SqlSession {
                 plan
             ))),
         }
-    }
-}
-
-struct TableX {
-    inner: Mutex<DeltaTable>,
-}
-
-impl TableX {
-    async fn write(&self, input: Vec<RecordBatch>) -> Result<(), Error> {
-        let mut table = self.inner.lock().await;
-        let mut writer = RecordBatchWriter::for_table(&table)?;
-        for batch in input {
-            writer
-                .write(batch.with_schema(writer.arrow_schema()).unwrap())
-                .await?;
-        }
-        writer.flush_and_commit(&mut table).await?;
-
-        Ok(())
-    }
-}
-
-#[async_trait]
-impl TableProvider for TableX {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn schema(&self) -> SchemaRef {
-        futures::executor::block_on(async {
-            let table = self.inner.lock().await;
-            table.get_state().arrow_schema().unwrap()
-        })
-    }
-
-    fn table_type(&self) -> TableType {
-        TableType::Base
-    }
-
-    async fn scan(
-        &self,
-        state: &SessionState,
-        projection: Option<&Vec<usize>>,
-        filters: &[Expr],
-        // limit can be used to reduce the amount scanned
-        // from the datasource as a performance optimization.
-        // If set, it contains the amount of rows needed by the `LogicalPlan`,
-        // The datasource should return *at least* this number of rows if available.
-        limit: Option<usize>,
-    ) -> datafusion::error::Result<Arc<dyn ExecutionPlan>> {
-        let table = self.inner.lock().await;
-        table.scan(state, projection, filters, limit).await
-    }
-
-    fn supports_filter_pushdown(
-        &self,
-        filter: &Expr,
-    ) -> datafusion::error::Result<TableProviderFilterPushDown> {
-        futures::executor::block_on(async {
-            let table = self.inner.lock().await;
-
-            #[allow(deprecated)]
-            table.supports_filter_pushdown(filter)
-        })
-    }
-
-    fn statistics(&self) -> Option<Statistics> {
-        futures::executor::block_on(async {
-            let table = self.inner.lock().await;
-            table.statistics()
-        })
     }
 }
