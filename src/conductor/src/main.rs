@@ -8,6 +8,7 @@ use object_store::{aws::AmazonS3Builder, gcp::GoogleCloudStorageBuilder, prefix:
 use rustyline::{self, error::ReadlineError};
 use score::Score;
 use sql::SqlSession;
+use url::Url;
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -216,26 +217,30 @@ async fn sql_ensemble_x(data_path: Option<String>) -> Result<()> {
     Ok(())
 }
 
-fn parse_data_path(data_path: String) -> Result<url::Url> {
-    if let Ok(url) = url::Url::parse(data_path.as_str()) {
+fn parse_data_path(data_path: String) -> Result<Url> {
+    if let Ok(url) = Url::parse(data_path.as_str()) {
         return Ok(url);
     } else {
-        let path = std::path::PathBuf::from(data_path.as_str()).canonicalize()?;
-
+        let path = PathBuf::from(data_path.as_str());
         if path.exists() {
-            let url = url::Url::from_directory_path(path).unwrap();
+            let abs_path = path.canonicalize()?;
+            let url = Url::from_directory_path(abs_path).unwrap();
             return Ok(url);
         }
     }
 
-    Err(anyhow!("Invalid data path: {}", data_path))
+    Err(anyhow!(
+        "Invalid data path: {}. If it is a local path, make sure it exists.",
+        data_path
+    ))
 }
 
-fn configure_object_storage(uri: &url::Url) -> Result<Box<object_store::DynObjectStore>> {
+fn configure_object_storage(uri: &Url) -> Result<Box<object_store::DynObjectStore>> {
     match uri.scheme() {
         "file" => {
             let path = uri.to_file_path().unwrap();
             let storage = object_store::local::LocalFileSystem::new_with_prefix(path)?;
+
             Ok(Box::new(storage))
         }
         "gs" => {
@@ -259,9 +264,12 @@ fn configure_object_storage(uri: &url::Url) -> Result<Box<object_store::DynObjec
 fn configure_ensemble_x_storage(data_path: String) -> Result<ensemble_x::storage::ObjectStore> {
     let location = parse_data_path(data_path)?;
     let storage = configure_object_storage(&location)?;
+
     Ok(ObjectStore::new(
         Arc::new(storage),
         location,
-        /*unsafe_rename=*/ true,
+        // HACK: unsafe_rename is required for the S3 backend to work
+        /*unsafe_rename=*/
+        true,
     ))
 }
