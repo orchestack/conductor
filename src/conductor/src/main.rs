@@ -1,9 +1,10 @@
 use std::{path::PathBuf, sync::Arc};
 
-use anyhow::Result;
+use anyhow::{anyhow, bail, Result};
 use arrow_cast::pretty;
 use clap::{Parser, Subcommand, ValueHint};
 use ensemble_x::storage::ObjectStore;
+use object_store::{gcp::GoogleCloudStorageBuilder, prefix::PrefixStore};
 use rustyline::{self, error::ReadlineError};
 use score::Score;
 use sql::SqlSession;
@@ -138,9 +139,9 @@ async fn apply_ensemble_x(
     let score = Score::new(score_path);
     let catalog = score.catalog()?;
 
-    let storage = object_store::local::LocalFileSystem::new_with_prefix(data_path.unwrap())?;
+    let location = parse_data_path(data_path.unwrap())?;
+    let storage = configure_object_storage(&location)?;
     let store = ObjectStore::new(Arc::new(storage));
-    let location = url::Url::parse("ensemble-x://")?;
 
     let mut ensemble = EnsembleX::new(store, location).await?;
     let from_catalog = ensemble.catalog()?;
@@ -167,9 +168,9 @@ async fn apply_ensemble_x(
 async fn sql_ensemble_x(data_path: Option<String>) -> Result<()> {
     use ensemble_x::EnsembleX;
 
-    let storage = object_store::local::LocalFileSystem::new_with_prefix(data_path.unwrap())?;
+    let location = parse_data_path(data_path.unwrap())?;
+    let storage = configure_object_storage(&location)?;
     let store = ObjectStore::new(Arc::new(storage));
-    let location = url::Url::parse("ensemble-x://")?;
 
     let ensemble = EnsembleX::new(store, location).await?;
     let mut session = SqlSession::new(ensemble).await?;
@@ -219,4 +220,39 @@ async fn sql_ensemble_x(data_path: Option<String>) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn parse_data_path(data_path: String) -> Result<url::Url> {
+    if let Ok(url) = url::Url::parse(data_path.as_str()) {
+        return Ok(url);
+    } else {
+        let path = std::path::PathBuf::from(data_path.as_str()).canonicalize()?;
+
+        if path.exists() {
+            let url = url::Url::from_directory_path(path).unwrap();
+            return Ok(url);
+        }
+    }
+
+    Err(anyhow!("Invalid data path: {}", data_path))
+}
+
+fn configure_object_storage(uri: &url::Url) -> Result<Box<object_store::DynObjectStore>> {
+    match uri.scheme() {
+        "file" => {
+            let path = uri.to_file_path().unwrap();
+            let storage = object_store::local::LocalFileSystem::new_with_prefix(path)?;
+            Ok(Box::new(storage))
+        }
+        "gs" => {
+            let gcs = GoogleCloudStorageBuilder::from_env()
+                .with_url(uri.as_str())
+                .build()?;
+
+            Ok(Box::new(PrefixStore::new(gcs, uri.path().to_string())))
+        }
+        scheme => {
+            bail!("Unsupported scheme: {}", scheme)
+        }
+    }
 }
