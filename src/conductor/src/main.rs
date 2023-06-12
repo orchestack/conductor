@@ -4,7 +4,7 @@ use anyhow::{anyhow, bail, Result};
 use arrow_cast::pretty;
 use clap::{Parser, Subcommand, ValueHint};
 use ensemble_x::storage::ObjectStore;
-use object_store::{gcp::GoogleCloudStorageBuilder, prefix::PrefixStore};
+use object_store::{aws::AmazonS3Builder, gcp::GoogleCloudStorageBuilder, prefix::PrefixStore};
 use rustyline::{self, error::ReadlineError};
 use score::Score;
 use sql::SqlSession;
@@ -139,11 +139,8 @@ async fn apply_ensemble_x(
     let score = Score::new(score_path);
     let catalog = score.catalog()?;
 
-    let location = parse_data_path(data_path.unwrap())?;
-    let storage = configure_object_storage(&location)?;
-    let store = ObjectStore::new(Arc::new(storage));
-
-    let mut ensemble = EnsembleX::new(store, location).await?;
+    let store = configure_ensemble_x_storage(data_path.unwrap())?;
+    let mut ensemble = EnsembleX::new(store).await?;
     let from_catalog = ensemble.catalog()?;
     let diff = catalog::diff::Diff {};
     let edits = diff.diff(&from_catalog, &catalog)?;
@@ -168,11 +165,8 @@ async fn apply_ensemble_x(
 async fn sql_ensemble_x(data_path: Option<String>) -> Result<()> {
     use ensemble_x::EnsembleX;
 
-    let location = parse_data_path(data_path.unwrap())?;
-    let storage = configure_object_storage(&location)?;
-    let store = ObjectStore::new(Arc::new(storage));
-
-    let ensemble = EnsembleX::new(store, location).await?;
+    let store = configure_ensemble_x_storage(data_path.unwrap())?;
+    let ensemble = EnsembleX::new(store).await?;
     let mut session = SqlSession::new(ensemble).await?;
 
     let mut rl = rustyline::DefaultEditor::new()?;
@@ -251,8 +245,23 @@ fn configure_object_storage(uri: &url::Url) -> Result<Box<object_store::DynObjec
 
             Ok(Box::new(PrefixStore::new(gcs, uri.path().to_string())))
         }
+        "s3" => {
+            let s3 = AmazonS3Builder::from_env().with_url(uri.as_str()).build()?;
+
+            Ok(Box::new(PrefixStore::new(s3, uri.path().to_string())))
+        }
         scheme => {
             bail!("Unsupported scheme: {}", scheme)
         }
     }
+}
+
+fn configure_ensemble_x_storage(data_path: String) -> Result<ensemble_x::storage::ObjectStore> {
+    let location = parse_data_path(data_path)?;
+    let storage = configure_object_storage(&location)?;
+    Ok(ObjectStore::new(
+        Arc::new(storage),
+        location,
+        /*unsafe_rename=*/ true,
+    ))
 }

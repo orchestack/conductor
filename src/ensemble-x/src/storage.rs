@@ -9,11 +9,25 @@ use tokio::io::AsyncWrite;
 #[derive(Debug, Clone)]
 pub struct ObjectStore {
     inner: Arc<dyn object_store::ObjectStore>,
+    location: url::Url,
+    unsafe_rename: bool,
 }
 
 impl ObjectStore {
-    pub fn new(inner: Arc<dyn object_store::ObjectStore>) -> Self {
-        Self { inner }
+    pub fn new(
+        inner: Arc<dyn object_store::ObjectStore>,
+        location: url::Url,
+        unsafe_rename: bool,
+    ) -> Self {
+        Self {
+            inner,
+            location,
+            unsafe_rename,
+        }
+    }
+
+    pub fn location(&self) -> &url::Url {
+        &self.location
     }
 }
 
@@ -85,6 +99,10 @@ impl object_store::ObjectStore for ObjectStore {
     }
 
     async fn copy_if_not_exists(&self, from: &Path, to: &Path) -> object_store::Result<()> {
+        if self.unsafe_rename {
+            return self.inner.copy(from, to).await;
+        }
+
         self.inner.copy_if_not_exists(from, to).await
     }
 }

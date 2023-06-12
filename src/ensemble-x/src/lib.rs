@@ -61,7 +61,8 @@ enum Action {
 const CATALOG_PATH: &str = "_conductor_catalog.json";
 
 impl EnsembleX {
-    pub async fn new(storage: ObjectStore, location: Url) -> Result<Self, Error> {
+    pub async fn new(storage: ObjectStore) -> Result<Self, Error> {
+        let location = storage.location().clone();
         let catalog = match storage.get(&Path::parse(CATALOG_PATH).unwrap()).await {
             Ok(get_result) => Ok(serde_json::from_slice(&get_result.bytes().await?.slice(..))
                 .map_err(|e| Error::Error(e.to_string()))?),
