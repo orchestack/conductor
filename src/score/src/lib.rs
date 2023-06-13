@@ -8,6 +8,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ScoreError {
+    #[error("compile error: {error} in {path}")]
+    CompileError { error: String, path: PathBuf },
     #[error("parser error: {0}")]
     ParserError(#[from] sqlparser::parser::ParserError),
     #[error("io error: {0}")]
@@ -43,19 +45,38 @@ impl Score {
             })
             .collect::<Result<Vec<_>>>()?;
 
+        let mut pkg = ScorePkg {
+            path: self.path.clone(),
+            files: Vec::new(),
+        };
+
         // Collect all statements from all score files.
-        let mut statements = VecDeque::new();
         for score_file in score_files {
-            let content = fs::read_to_string(score_file)?;
+            let content = fs::read_to_string(&score_file)?;
             let mut sp = parser::ScoreParser::new(&content)?;
-            let score_file = sp.parse()?;
-            statements.extend(score_file);
+            let statements = sp.parse()?;
+
+            pkg.files.push(ScoreFile {
+                path: score_file.clone(),
+                statements,
+            });
         }
 
         // Compile the statements into a catalog.
         let compiler = compiler::ScoreCompiler {};
-        let catalog = compiler.compile(statements)?;
+        let catalog = compiler.compile(pkg)?;
 
         Ok(catalog)
     }
+}
+
+struct ScorePkg {
+    #[allow(dead_code)]
+    path: PathBuf,
+    files: Vec<ScoreFile>,
+}
+
+struct ScoreFile {
+    path: PathBuf,
+    statements: VecDeque<parser::Statement>,
 }
