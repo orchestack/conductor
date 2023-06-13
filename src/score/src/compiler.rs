@@ -9,6 +9,8 @@ pub struct ScoreCompiler {}
 
 impl ScoreCompiler {
     pub fn compile(&self, mut stmts: VecDeque<Statement>) -> Result<Catalog> {
+        let mut catalog = Catalog::default();
+
         let mut table_names = HashSet::new();
         let mut table_uuids = HashSet::new();
 
@@ -69,6 +71,8 @@ impl ScoreCompiler {
             }
         }
 
-        Ok(Catalog { root: ns })
+        catalog.namespaces.insert(ns.name.clone(), ns);
+
+        Ok(catalog)
     }
 }

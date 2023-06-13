@@ -19,14 +19,14 @@ use deltalake::{
 use futures::StreamExt;
 use object_store::{path::Path, prefix::PrefixStore, ObjectStore as ObjectStoreTrait};
 use serde_json::json;
+use thiserror::Error;
 use tokio::sync::Mutex;
 use tracing::trace;
 use url::Url;
 
-use thiserror::Error;
+use crate::storage::ObjectStore;
 
 pub mod storage;
-use storage::ObjectStore;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -45,7 +45,6 @@ const METADATA_COLUMN_UID: &str = "orchestack.column-uid";
 
 pub struct EnsembleX {
     storage: ObjectStore,
-    location: Url,
     catalog: Catalog,
     pending_actions: Vec<Action>,
 }
@@ -62,25 +61,15 @@ const CATALOG_PATH: &str = "_conductor_catalog.json";
 
 impl EnsembleX {
     pub async fn new(storage: ObjectStore) -> Result<Self, Error> {
-        let location = storage.location().clone();
         let catalog = match storage.get(&Path::parse(CATALOG_PATH).unwrap()).await {
             Ok(get_result) => Ok(serde_json::from_slice(&get_result.bytes().await?.slice(..))
                 .map_err(|e| Error::Error(e.to_string()))?),
-            Err(object_store::Error::NotFound { .. }) => {
-                Ok(Catalog {
-                    root: catalog::Namespace {
-                        // TODO:
-                        name: "northwind".to_string(),
-                        tables: Default::default(),
-                    },
-                })
-            }
+            Err(object_store::Error::NotFound { .. }) => Ok(Catalog::default()),
             Err(e) => Err(e),
         }?;
 
         Ok(Self {
             storage: storage.clone(),
-            location,
             catalog,
             pending_actions: vec![],
         })
@@ -106,6 +95,15 @@ impl EnsembleX {
 
     pub async fn apply(&mut self, edit: &Edit) -> Result<(), Error> {
         match edit {
+            Edit::CreateNamespace { name } => {
+                self.catalog.namespaces.insert(
+                    name.clone(),
+                    catalog::Namespace {
+                        name: name.clone(),
+                        tables: Default::default(),
+                    },
+                );
+            }
             Edit::CreateTable(table) => {
                 let delta_columns = table
                     .columns
@@ -130,7 +128,9 @@ impl EnsembleX {
                     .with_object_store(delta_storage);
 
                 self.catalog
-                    .root
+                    .namespaces
+                    .get_mut(table.namespace.as_str())
+                    .unwrap()
                     .tables
                     .insert(table.name.clone(), table.clone());
 
@@ -138,7 +138,12 @@ impl EnsembleX {
                     .push(Action::CreateTable(create_builder));
             }
             Edit::DropTable(table) => {
-                self.catalog.root.tables.remove(&table.name);
+                self.catalog
+                    .namespaces
+                    .get_mut(table.namespace.as_str())
+                    .unwrap()
+                    .tables
+                    .remove(&table.name);
 
                 self.pending_actions.push(Action::DropTable {
                     namespace: table.namespace.clone(),
@@ -205,7 +210,13 @@ impl EnsembleX {
         name: &str,
     ) -> (Arc<PrefixStore<storage::ObjectStore>>, Url) {
         trace!(?namespace, ?name, "store_for_table");
-        let location = self.location.join(namespace).unwrap().join(name).unwrap();
+        let mut location = self.storage.location().clone();
+        location
+            .path_segments_mut()
+            .unwrap()
+            .push(namespace)
+            .push(name);
+
         let store = Arc::new(PrefixStore::new(
             self.storage.clone(),
             object_store::path::Path::parse(namespace)

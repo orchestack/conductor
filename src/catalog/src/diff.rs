@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use sqlparser::ast::{
     AlterColumnOperation, AlterTableOperation, ColumnDef, Ident, ObjectName, Statement,
@@ -17,7 +17,47 @@ pub struct Diff {}
 
 impl Diff {
     pub fn diff(&self, a: &Catalog, b: &Catalog) -> Result<Vec<Edit>, DiffError> {
-        self.diff_namespace(&a.root, &b.root)
+        let a_ns = a
+            .namespaces
+            .values()
+            .map(|v| v.name.clone())
+            .collect::<HashSet<_>>();
+        let b_ns = b
+            .namespaces
+            .values()
+            .map(|v| v.name.clone())
+            .collect::<HashSet<_>>();
+        let namespaces = a_ns.union(&b_ns).collect::<Vec<_>>();
+
+        let mut edits = Vec::<Edit>::new();
+        for ns_name in namespaces {
+            let a_ns = a.namespaces.get(ns_name);
+            let b_ns = b.namespaces.get(ns_name);
+
+            match (a_ns, b_ns) {
+                (Some(a), Some(b)) => edits.extend(self.diff_namespace(a, b)?),
+                (Some(a), None) => {
+                    let b = Namespace {
+                        name: a.name.clone(),
+                        tables: HashMap::new(),
+                    };
+                    edits.extend(self.diff_namespace(a, &b)?)
+                }
+                (None, Some(b)) => {
+                    let a = Namespace {
+                        name: b.name.clone(),
+                        tables: HashMap::new(),
+                    };
+                    edits.push(Edit::CreateNamespace {
+                        name: b.name.clone(),
+                    });
+                    edits.extend(self.diff_namespace(&a, b)?)
+                }
+                (None, None) => unreachable!(),
+            }
+        }
+
+        Ok(edits)
     }
 
     fn diff_namespace(&self, a: &Namespace, b: &Namespace) -> Result<Vec<Edit>, DiffError> {

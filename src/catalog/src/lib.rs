@@ -5,9 +5,9 @@ use serde::{Deserialize, Serialize};
 pub mod diff;
 pub mod edit;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Catalog {
-    pub root: Namespace,
+    pub namespaces: HashMap<String, Namespace>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

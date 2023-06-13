@@ -46,19 +46,22 @@ impl SqlSession {
 
         let mut tables = HashMap::new();
         let catalog = ensemble.catalog()?;
-        let schema_provider = Arc::new(MemorySchemaProvider::new());
-        for table in catalog.root.tables.values() {
-            let x_table = ensemble.table(&table.namespace, &table.name).await?;
 
-            tables.insert(table.name.clone(), x_table.clone());
-            schema_provider.register_table(table.name.clone(), x_table)?;
+        for ns in catalog.namespaces.values() {
+            let schema_provider = Arc::new(MemorySchemaProvider::new());
+            for table in ns.tables.values() {
+                let x_table = ensemble.table(&table.namespace, &table.name).await?;
+
+                tables.insert(table.name.clone(), x_table.clone());
+                schema_provider.register_table(table.name.clone(), x_table)?;
+            }
+
+            state
+                .catalog_list()
+                .catalog("conductor")
+                .unwrap()
+                .register_schema(&ns.name, schema_provider)?;
         }
-
-        state
-            .catalog_list()
-            .catalog("conductor")
-            .unwrap()
-            .register_schema(&catalog.root.name, schema_provider)?;
 
         Ok(SqlSession { state, tables })
     }
