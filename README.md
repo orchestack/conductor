@@ -13,6 +13,8 @@
 
 ## High-level design
 
+<sup>Be prepared to abuse too many music terms.</sup>
+
 To allow deducing changes from declarative representation, entities that have
 state must also have a persistent identity. Tables and columns are renamed from
 time to time, so using name as this identifier is undesirable. Instead, a UUID
@@ -66,6 +68,12 @@ are called "ensembles".
 At this moment, only a single ensemble implementation is planned. It is being
 built on top of Apache DataFusion and Delta Lake.
 
+### Ostinator
+
+<sup>[Loop delay device](http://www.livelooping.org/tools/rack/loopdelay/)</sup>
+
+...
+
 ## Roadmap
 
 - [ ] **In progress** Core features design (declarative management for base
@@ -75,6 +83,7 @@ built on top of Apache DataFusion and Delta Lake.
   writing DeltaLake data)
 - [ ] **In progress** Interactive SQL sessions
 - [ ] AuthNZ (security policies design)
+- [ ] **In progress** Server mode
 - [ ] Support for modifying column types, nullability, etc.
 - [ ] Basic dataflow support
 - [ ] [**Have an idea? Open an issue.**](https://github.com/orchestack/conductor/issues/new)

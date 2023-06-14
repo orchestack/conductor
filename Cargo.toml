@@ -6,6 +6,7 @@ members = [
     "src/score",
     "src/sql",
     "src/ensemble-x",
+    "src/ostinator",
     "src/workspace-hack"
 ]
 
