@@ -10,16 +10,17 @@ use sqlparser::{
 
 type Result<T> = std::result::Result<T, Error>;
 
+#[derive(Debug)]
 pub enum Statement {
     Statement(SqlStatement),
 }
 
-pub(crate) struct SqlParser<'a> {
+pub struct SqlParser<'a> {
     inner: Parser<'a>,
 }
 
 impl<'a> SqlParser<'a> {
-    pub(crate) fn new(sql: &'a str) -> Result<Self> {
+    pub fn new(sql: &'a str) -> Result<Self> {
         let dialect = &GenericDialect {};
         let mut tokenizer = Tokenizer::new(dialect, sql);
         let tokens = tokenizer.tokenize()?;
@@ -29,7 +30,7 @@ impl<'a> SqlParser<'a> {
         })
     }
 
-    pub(crate) fn parse_sql(&mut self) -> Result<VecDeque<Statement>> {
+    pub fn parse_sql(&mut self) -> Result<VecDeque<Statement>> {
         Ok(self
             .inner
             .parse_statements()?

@@ -12,6 +12,8 @@ pub enum ScoreError {
     CompileError { error: String, path: PathBuf },
     #[error("parser error: {0}")]
     ParserError(#[from] sqlparser::parser::ParserError),
+    #[error("sql parser error: {0}")]
+    SqlParserError(#[from] sql::Error),
     #[error("io error: {0}")]
     IoError(#[from] io::Error),
     #[error("score error: {0}")]

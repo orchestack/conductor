@@ -12,7 +12,7 @@ use ensemble_x::{EnsembleX, TableX};
 
 use thiserror::Error;
 
-mod parser;
+pub mod parser;
 
 #[derive(Error, Debug)]
 pub enum Error {

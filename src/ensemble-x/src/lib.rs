@@ -100,7 +100,7 @@ impl EnsembleX {
                     name.clone(),
                     catalog::Namespace {
                         name: name.clone(),
-                        tables: Default::default(),
+                        ..Default::default()
                     },
                 );
             }
@@ -149,6 +149,22 @@ impl EnsembleX {
                     namespace: table.namespace.clone(),
                     name: table.name.clone(),
                 });
+            }
+            Edit::ReplaceHttpHandler(http_handler) => {
+                self.catalog
+                    .namespaces
+                    .get_mut(http_handler.namespace.as_str())
+                    .unwrap()
+                    .http_handlers
+                    .insert(http_handler.name.clone(), http_handler.clone());
+            }
+            Edit::DropHttpHandler(http_handler) => {
+                self.catalog
+                    .namespaces
+                    .get_mut(http_handler.namespace.as_str())
+                    .unwrap()
+                    .http_handlers
+                    .remove(&http_handler.name);
             }
             edit => {
                 todo!("edit not implemented yet: {:?}", edit);

@@ -1,11 +1,11 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use sqlparser::ast::{
     AlterColumnOperation, AlterTableOperation, ColumnDef, Ident, ObjectName, Statement,
 };
 use thiserror::Error;
 
-use crate::{edit::Edit, Catalog, Namespace, Table};
+use crate::{edit::Edit, Catalog, HttpHandler, Namespace, Table};
 
 #[derive(Error, Debug)]
 pub enum DiffError {
@@ -39,14 +39,14 @@ impl Diff {
                 (Some(a), None) => {
                     let b = Namespace {
                         name: a.name.clone(),
-                        tables: HashMap::new(),
+                        ..Default::default()
                     };
                     edits.extend(self.diff_namespace(a, &b)?)
                 }
                 (None, Some(b)) => {
                     let a = Namespace {
                         name: b.name.clone(),
-                        tables: HashMap::new(),
+                        ..Default::default()
                     };
                     edits.push(Edit::CreateNamespace {
                         name: b.name.clone(),
@@ -90,6 +90,44 @@ impl Diff {
 
             edits.extend(self.diff_table(a_table, b_table)?);
         }
+
+        let a_handler_names = a
+            .http_handlers
+            .values()
+            .map(|v| v.name.clone())
+            .collect::<HashSet<_>>();
+        let b_handler_names = b
+            .http_handlers
+            .values()
+            .map(|v| v.name.clone())
+            .collect::<HashSet<_>>();
+
+        // Handlers that exist in A but not B, we need to drop them.
+        let drop_handlers = a_handler_names
+            .difference(&b_handler_names)
+            .collect::<Vec<_>>();
+        for handler_name in drop_handlers {
+            let handler = a.get_http_handler_by_name(handler_name).unwrap();
+            edits.push(Edit::DropHttpHandler(HttpHandler {
+                namespace: a.name.clone(),
+                name: handler.name.clone(),
+            }));
+        }
+
+        // Handlers that exist in B but not A, we need to create them.
+        let create_handlers = b_handler_names
+            .difference(&a_handler_names)
+            .collect::<Vec<_>>();
+        for handler_name in create_handlers {
+            let handler = b.get_http_handler_by_name(handler_name).unwrap();
+            edits.push(Edit::ReplaceHttpHandler(HttpHandler {
+                namespace: b.name.clone(),
+                name: handler.name.clone(),
+            }));
+        }
+
+        // Handlers that exist in both A and B, we need to diff them.
+        // TODO: diff handlers
 
         Ok(edits)
     }

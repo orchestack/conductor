@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use catalog::{Catalog, Column, Namespace, Table};
+use catalog::{Catalog, Column, HttpHandler, Namespace, Table};
 
 use crate::parser::Statement;
 use crate::{Result, ScoreError, ScorePkg};
@@ -29,7 +29,7 @@ impl ScoreCompiler {
 
         let mut ns = Namespace {
             name: namespace_name.clone(),
-            tables: Default::default(),
+            ..Default::default()
         };
 
         let mut table_names = HashSet::new();
@@ -52,18 +52,18 @@ impl ScoreCompiler {
 
             for stmt in stmt_iter {
                 match stmt {
-                    Statement::TableDecl(ct) => {
+                    Statement::TableDecl(table_decl) => {
                         let mut table = Table {
                             namespace: ns.name.clone(),
-                            uuid: Into::into(ct.uuid),
-                            name: ct.name.clone(),
+                            uuid: Into::into(table_decl.uuid),
+                            name: table_decl.name.clone(),
                             columns: Default::default(),
                         };
 
                         let mut column_names = HashSet::new();
                         let mut column_uids = HashSet::new();
 
-                        for col in &ct.columns {
+                        for col in &table_decl.columns {
                             if column_names.contains(&col.inner.name.value)
                                 || column_uids.contains(&col.uid)
                             {
@@ -83,17 +83,41 @@ impl ScoreCompiler {
                             });
                         }
 
-                        if table_names.contains(&ct.name) || table_uuids.contains(&ct.uuid) {
+                        if table_names.contains(&table_decl.name)
+                            || table_uuids.contains(&table_decl.uuid)
+                        {
                             return Err(ScoreError::CompileError {
-                                error: format!("conflicting table declaration: {}", ct.name),
+                                error: format!(
+                                    "conflicting table declaration: {}",
+                                    table_decl.name
+                                ),
                                 path: file.path.clone(),
                             });
                         }
 
-                        table_names.insert(ct.name.clone());
-                        table_uuids.insert(ct.uuid);
+                        table_names.insert(table_decl.name.clone());
+                        table_uuids.insert(table_decl.uuid);
 
-                        ns.tables.insert(ct.name.clone(), table);
+                        ns.tables.insert(table_decl.name.clone(), table);
+                    }
+                    Statement::HttpHandlerDecl(handler_decl) => {
+                        if ns.http_handlers.contains_key(&handler_decl.name) {
+                            return Err(ScoreError::CompileError {
+                                error: format!(
+                                    "conflicting http handler declaration: {}",
+                                    handler_decl.name
+                                ),
+                                path: file.path.clone(),
+                            });
+                        }
+
+                        ns.http_handlers.insert(
+                            handler_decl.name.clone(),
+                            HttpHandler {
+                                namespace: ns.name.clone(),
+                                name: handler_decl.name.clone(),
+                            },
+                        );
                     }
                     _ => unreachable!(),
                 }

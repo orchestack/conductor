@@ -1,7 +1,8 @@
 use std::collections::VecDeque;
 
+use sql::parser::SqlParser;
 use sqlparser::{
-    ast::{Ident, TableConstraint, Value},
+    ast::{DollarQuotedString, Ident, TableConstraint, Value},
     dialect::GenericDialect,
     keywords::Keyword,
     parser::Parser,
@@ -14,6 +15,7 @@ use crate::{Result, ScoreError};
 pub enum Statement {
     NamespaceDecl(String),
     TableDecl(TableDecl),
+    HttpHandlerDecl(HttpHandlerDecl),
 }
 
 #[derive(Debug)]
@@ -28,6 +30,12 @@ pub struct TableDecl {
 pub struct ColumnDef {
     pub uid: u32,
     pub inner: sqlparser::ast::ColumnDef,
+}
+
+#[derive(Debug)]
+pub struct HttpHandlerDecl {
+    pub name: String,
+    pub body: VecDeque<sql::parser::Statement>,
 }
 
 pub struct ScoreParser<'a> {
@@ -89,16 +97,23 @@ impl<'a> ScoreParser<'a> {
     }
 
     fn parse_statement(&mut self) -> Result<Statement> {
-        match self.peek_token().token {
-            Token::Word(w) => match w.keyword {
-                Keyword::TABLE => {
+        let entity_types = vec!["TABLE", "HTTP_HANDLER"];
+
+        if let Token::Word(w) = self.peek_token().token {
+            match w.value.as_ref() {
+                "TABLE" => {
                     self.parser.next_token();
-                    self.parse_table_decl()
+                    return self.parse_table_decl();
                 }
-                _ => self.expected("TABLE", self.peek_token()),
-            },
-            _ => self.expected("TABLE", self.peek_token()),
+                "HTTP_HANDLER" => {
+                    self.parser.next_token();
+                    return self.parse_http_handler_decl();
+                }
+                _ => {}
+            }
         }
+
+        self.expected(&format!("one of {:?}", entity_types), self.peek_token())
     }
 
     fn parse_table_decl(&mut self) -> Result<Statement> {
@@ -219,6 +234,27 @@ impl<'a> ScoreParser<'a> {
             },
             _ => self.expected("UID <literal number>", self.peek_token()),
         }
+    }
+
+    fn parse_http_handler_decl(&mut self) -> Result<Statement> {
+        let name = self.parser.parse_identifier()?;
+        self.parser.expect_keyword(Keyword::AS)?;
+
+        let body = match self.peek_token().token {
+            Token::DollarQuotedString(DollarQuotedString { value, .. }) => {
+                self.parser.next_token();
+
+                let mut sql_stmt_parser = SqlParser::new(&value)?;
+                sql_stmt_parser.parse_sql()?
+            }
+            _ => return self.expected("dollar quoted string", self.peek_token()),
+        };
+
+        let handler_decl = HttpHandlerDecl {
+            name: name.value,
+            body,
+        };
+        Ok(Statement::HttpHandlerDecl(handler_decl))
     }
 
     fn peek_token(&self) -> TokenWithLocation {
