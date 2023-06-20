@@ -9,7 +9,33 @@
 
 ## User guide
 
-...
+#### (Not _yet_ working) example:
+
+```sql
+NAMESPACE app_analytics;
+
+TABLE raw_events
+UUID 'E3D8BFAC-75FA-4130-8668-B6CFF93F88E2' (
+    timestamp INTEGER UID 1,
+    collector TEXT UID 2,
+    --
+    payload_format TEXT UID 3,
+    payload_data TEXT UID 4,
+    --
+    ip_address TEXT UID 5,
+    hostname TEXT UID 6,
+    user_agent TEXT UID 7,
+    referer_uri TEXT UID 8,
+    headers TEXT UID 9,
+);
+
+HTTP_HANDLER push_event
+AS
+$$
+    INSERT into raw_events (payload_data)
+        SELECT body FROM input();
+$$
+```
 
 ## High-level design
 
