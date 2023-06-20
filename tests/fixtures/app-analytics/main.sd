@@ -18,6 +18,6 @@ UUID 'E3D8BFAC-75FA-4130-8668-B6CFF93F88E2' (
 HTTP_HANDLER push_event
 AS
 $$
-    INSERT into raw_events (payload_data)
+    INSERT into app_analytics.raw_events (payload_data)
         SELECT body FROM input();
 $$

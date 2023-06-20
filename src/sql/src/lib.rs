@@ -81,11 +81,15 @@ impl SqlSession {
     }
 
     pub async fn execute(&mut self, sql: &str) -> Result<Vec<RecordBatch>, Error> {
-        let mut parser = parser::SqlParser::new(sql)?;
-        let mut statements = parser.parse_sql()?;
-        assert_eq!(statements.len(), 1, "multiple statements not supported yet");
+        let stmt;
 
-        let parser::Statement::Statement(stmt) = statements.pop_front().unwrap();
+        {
+            let mut parser = parser::SqlParser::new(sql)?;
+            let mut statements = parser.parse_sql()?;
+            assert_eq!(statements.len(), 1, "multiple statements not supported yet");
+
+            parser::Statement::Statement(stmt) = statements.pop_front().unwrap();
+        }
 
         let plan = self
             .state

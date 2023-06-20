@@ -111,18 +111,21 @@ impl Diff {
             edits.push(Edit::DropHttpHandler(HttpHandler {
                 namespace: a.name.clone(),
                 name: handler.name.clone(),
+                body: handler.body.clone(),
             }));
         }
 
         // Handlers that exist in B but not A, we need to create them.
-        let create_handlers = b_handler_names
-            .difference(&a_handler_names)
-            .collect::<Vec<_>>();
+        // let create_handlers = b_handler_names
+        //     .difference(&a_handler_names)
+        //     .collect::<Vec<_>>();
+        let create_handlers = b_handler_names.iter().collect::<Vec<_>>();
         for handler_name in create_handlers {
             let handler = b.get_http_handler_by_name(handler_name).unwrap();
             edits.push(Edit::ReplaceHttpHandler(HttpHandler {
                 namespace: b.name.clone(),
                 name: handler.name.clone(),
+                body: handler.body.clone(),
             }));
         }
 

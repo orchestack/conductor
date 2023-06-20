@@ -35,7 +35,7 @@ pub struct ColumnDef {
 #[derive(Debug)]
 pub struct HttpHandlerDecl {
     pub name: String,
-    pub body: VecDeque<sql::parser::Statement>,
+    pub body: sql::parser::Statement,
 }
 
 pub struct ScoreParser<'a> {
@@ -245,7 +245,7 @@ impl<'a> ScoreParser<'a> {
                 self.parser.next_token();
 
                 let mut sql_stmt_parser = SqlParser::new(&value)?;
-                sql_stmt_parser.parse_sql()?
+                sql_stmt_parser.parse_sql()?.into_iter().next().unwrap()
             }
             _ => return self.expected("dollar quoted string", self.peek_token()),
         };

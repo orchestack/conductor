@@ -8,6 +8,7 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::post;
 use axum::Router;
+use axum_macros::debug_handler;
 use clap::Parser;
 use ensemble_x::storage::ObjectStore;
 use object_store::aws::AmazonS3Builder;
@@ -46,6 +47,7 @@ async fn main() -> Result<()> {
         .with_context(|| format!("failed to bind to {}", addr))
 }
 
+#[debug_handler]
 async fn http_handler(
     State(state): State<Arc<AppState>>,
     Path((ns_name, handler_name)): Path<(String, String)>,
@@ -62,6 +64,9 @@ async fn http_handler(
         .unwrap();
 
     info!(?handler, "http handler");
+
+    let mut session = sql::SqlSession::new(ensemble).await.unwrap();
+    session.execute(handler.body.as_str()).await.unwrap();
 
     (StatusCode::OK, ())
 }

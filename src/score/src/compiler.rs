@@ -116,6 +116,9 @@ impl ScoreCompiler {
                             HttpHandler {
                                 namespace: ns.name.clone(),
                                 name: handler_decl.name.clone(),
+                                body: match &handler_decl.body {
+                                    sql::parser::Statement::Statement(st) => st.to_string(),
+                                },
                             },
                         );
                     }

@@ -52,5 +52,5 @@ pub struct Column {
 pub struct HttpHandler {
     pub namespace: String,
     pub name: String,
-    // pub body: Vec<sql::parser::Statement>,
+    pub body: String,
 }
