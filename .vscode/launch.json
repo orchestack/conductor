@@ -1,0 +1,134 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in library 'catalog'",
+      "cargo": {
+        "args": ["test", "--no-run", "--lib", "--package=catalog"],
+        "filter": {
+          "name": "catalog",
+          "kind": "lib"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in library 'workspace-hack'",
+      "cargo": {
+        "args": ["test", "--no-run", "--lib", "--package=workspace-hack"],
+        "filter": {
+          "name": "workspace-hack",
+          "kind": "lib"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'conductor'",
+      "cargo": {
+        "args": ["build", "--bin=conductor", "--package=conductor"],
+        "filter": {
+          "name": "conductor",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in executable 'conductor'",
+      "cargo": {
+        "args": ["test", "--no-run", "--bin=conductor", "--package=conductor"],
+        "filter": {
+          "name": "conductor",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in library 'ensemble-x'",
+      "cargo": {
+        "args": ["test", "--no-run", "--lib", "--package=ensemble-x"],
+        "filter": {
+          "name": "ensemble-x",
+          "kind": "lib"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in library 'score'",
+      "cargo": {
+        "args": ["test", "--no-run", "--lib", "--package=score"],
+        "filter": {
+          "name": "score",
+          "kind": "lib"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in library 'sql'",
+      "cargo": {
+        "args": ["test", "--no-run", "--lib", "--package=sql"],
+        "filter": {
+          "name": "sql",
+          "kind": "lib"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'ostinator'",
+      "cargo": {
+        "args": ["build", "--bin=ostinator", "--package=ostinator"],
+        "filter": {
+          "name": "ostinator",
+          "kind": "bin"
+        }
+      },
+      "args": ["--x-path", "./store/app-analytics/"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in executable 'ostinator'",
+      "cargo": {
+        "args": ["test", "--no-run", "--bin=ostinator", "--package=ostinator"],
+        "filter": {
+          "name": "ostinator",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

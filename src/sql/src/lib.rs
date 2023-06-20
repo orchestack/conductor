@@ -31,7 +31,7 @@ pub enum Error {
 }
 
 pub struct SqlSession {
-    state: SessionState,
+    pub state: SessionState,
     tables: HashMap<String, Arc<TableX>>,
 }
 

@@ -8,14 +8,16 @@ publish = false
 
 [dependencies]
 anyhow = "1.0.71"
+async-trait = "0.1.68"
+axum = { version = "0.6.18", features = ["tracing"] }
+axum-macros = "0.3.7"
 clap = { version = "4.3.3", features = ["derive"] }
+datafusion = { version = "25.0.0", default-features = false }
+object_store = { version = "0.5.6", features = ["gcp", "aws", "aws_profile"] }
 tokio = { version = "1.28.2", features = ["full"] }
 tracing = "0.1.37"
 tracing-subscriber = "0.3.17"
-object_store = { version = "0.5.6", features = ["gcp", "aws", "aws_profile"] }
 url = "2.4.0"
-axum = { version = "0.6.18", features = ["tracing"] }
-ensemble-x = { path = "../ensemble-x" }
 sql = { path = "../sql" }
+ensemble-x = { path = "../ensemble-x" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
-axum-macros = "0.3.7"

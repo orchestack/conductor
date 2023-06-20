@@ -19,5 +19,5 @@ HTTP_HANDLER push_event
 AS
 $$
     INSERT into app_analytics.raw_events (payload_data)
-        SELECT body FROM input();
+        SELECT body FROM temporary.input;
 $$

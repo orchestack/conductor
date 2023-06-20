@@ -10,12 +10,17 @@ use axum::routing::post;
 use axum::Router;
 use axum_macros::debug_handler;
 use clap::Parser;
+use datafusion::catalog::schema::{MemorySchemaProvider, SchemaProvider};
 use ensemble_x::storage::ObjectStore;
 use object_store::aws::AmazonS3Builder;
 use object_store::gcp::GoogleCloudStorageBuilder;
 use object_store::prefix::PrefixStore;
 use tracing::info;
 use url::Url;
+
+use crate::http_handler_input::HttpHandlerInput;
+
+mod http_handler_input;
 
 #[derive(Debug, Parser)]
 struct Args {
@@ -51,6 +56,7 @@ async fn main() -> Result<()> {
 async fn http_handler(
     State(state): State<Arc<AppState>>,
     Path((ns_name, handler_name)): Path<(String, String)>,
+    body: String,
 ) -> impl IntoResponse {
     // Let's load the catalog.
     let ensemble = state.ensemble_x().await.unwrap();
@@ -66,6 +72,22 @@ async fn http_handler(
     info!(?handler, "http handler");
 
     let mut session = sql::SqlSession::new(ensemble).await.unwrap();
+
+    let schema = MemorySchemaProvider::new();
+
+    let input = HttpHandlerInput::new(body);
+    schema
+        .register_table("input".to_string(), Arc::new(input))
+        .unwrap();
+
+    session
+        .state
+        .catalog_list()
+        .catalog("conductor")
+        .unwrap()
+        .register_schema("temporary", Arc::new(schema))
+        .unwrap();
+
     session.execute(handler.body.as_str()).await.unwrap();
 
     (StatusCode::OK, ())
