@@ -107,9 +107,7 @@ impl SqlSession {
                             datafusion::logical_expr::WriteOp::Insert => {
                                 // Collect the input plan.
                                 let input =
-                                    DataFrame::new(self.state.clone(), (*dml_stmt.input).clone())
-                                        .collect()
-                                        .await?;
+                                    DataFrame::new(self.state.clone(), (*dml_stmt.input).clone());
 
                                 // Get the delta table handle.
                                 // TODO: Qualify table names correctly.
@@ -121,7 +119,7 @@ impl SqlSession {
                                         dml_stmt.table_name
                                     )))?;
 
-                                table.write(input).await?;
+                                table.write(input.execute_stream().await?).await?;
 
                                 return Ok(vec![]);
                             }

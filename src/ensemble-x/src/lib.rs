@@ -9,9 +9,7 @@ use datafusion::{
     execution::context::SessionState,
     logical_expr::{TableProviderFilterPushDown, TableType},
     physical_plan::ExecutionPlan,
-    physical_plan::{
-        memory::MemoryStream, RecordBatchStream, SendableRecordBatchStream, Statistics,
-    },
+    physical_plan::{RecordBatchStream, SendableRecordBatchStream, Statistics},
     prelude::Expr,
 };
 use deltalake::writer::DeltaWriter;
@@ -256,13 +254,10 @@ fn map_type(dt: &sqlparser::ast::DataType) -> SchemaDataType {
 }
 
 impl TableX {
-    pub async fn write(&self, input: Vec<RecordBatch>) -> Result<(), Error> {
+    pub async fn write(&self, input: SendableRecordBatchStream) -> Result<(), Error> {
         let mut table = self.inner.lock().await;
         let mut writer = RecordBatchWriter::for_table(&table)?;
-
-        let input_schema = input.first().as_ref().unwrap().schema();
-        let input_stream = Box::pin(MemoryStream::try_new(input, input_schema, None).unwrap());
-        let mut schema_adapter = SchemaAdapterStream::new(input_stream, writer.arrow_schema());
+        let mut schema_adapter = SchemaAdapterStream::new(input, writer.arrow_schema());
 
         while let Some(batch) = schema_adapter.next().await {
             writer.write(batch.unwrap()).await?;
