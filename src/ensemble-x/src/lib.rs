@@ -5,10 +5,13 @@ use catalog::{edit::Edit, Catalog};
 use datafusion::{
     arrow::{datatypes::SchemaRef, record_batch::RecordBatch},
     datasource::TableProvider,
+    error::DataFusionError,
     execution::context::SessionState,
     logical_expr::{TableProviderFilterPushDown, TableType},
     physical_plan::ExecutionPlan,
-    physical_plan::Statistics,
+    physical_plan::{
+        memory::MemoryStream, RecordBatchStream, SendableRecordBatchStream, Statistics,
+    },
     prelude::Expr,
 };
 use deltalake::writer::DeltaWriter;
@@ -16,7 +19,7 @@ use deltalake::{
     operations::create::CreateBuilder, storage::DeltaObjectStore, writer::RecordBatchWriter,
     DeltaTable, DeltaTableBuilder, SchemaDataType, SchemaField,
 };
-use futures::StreamExt;
+use futures::{Stream, StreamExt};
 use object_store::{path::Path, prefix::PrefixStore, ObjectStore as ObjectStoreTrait};
 use serde_json::json;
 use thiserror::Error;
@@ -256,10 +259,13 @@ impl TableX {
     pub async fn write(&self, input: Vec<RecordBatch>) -> Result<(), Error> {
         let mut table = self.inner.lock().await;
         let mut writer = RecordBatchWriter::for_table(&table)?;
-        for batch in input {
-            writer
-                .write(batch.with_schema(writer.arrow_schema()).unwrap())
-                .await?;
+
+        let input_schema = input.first().as_ref().unwrap().schema();
+        let input_stream = Box::pin(MemoryStream::try_new(input, input_schema, None).unwrap());
+        let mut schema_adapter = SchemaAdapterStream::new(input_stream, writer.arrow_schema());
+
+        while let Some(batch) = schema_adapter.next().await {
+            writer.write(batch.unwrap()).await?;
         }
         writer.flush_and_commit(&mut table).await?;
 
@@ -315,6 +321,55 @@ impl TableProvider for TableX {
         futures::executor::block_on(async {
             let table = self.inner.lock().await;
             table.statistics()
+        })
+    }
+}
+
+struct SchemaAdapterStream {
+    input: SendableRecordBatchStream,
+    schema: SchemaRef,
+}
+
+impl SchemaAdapterStream {
+    pub fn new(input: SendableRecordBatchStream, schema: SchemaRef) -> Self {
+        Self { input, schema }
+    }
+
+    fn adapt_batch(&self, batch: RecordBatch) -> datafusion::error::Result<RecordBatch> {
+        let mut columns = vec![];
+        let schema = batch.schema();
+
+        for field in self.schema.fields() {
+            match schema.index_of(field.name()) {
+                Ok(field_ix) => columns.push(batch.column(field_ix).clone()),
+                Err(_) => {
+                    columns.push(datafusion::arrow::array::new_null_array(
+                        field.data_type(),
+                        batch.num_rows(),
+                    ));
+                }
+            }
+        }
+
+        Ok(RecordBatch::try_new(self.schema.clone(), columns)?)
+    }
+}
+
+impl RecordBatchStream for SchemaAdapterStream {
+    fn schema(&self) -> SchemaRef {
+        self.schema.clone()
+    }
+}
+
+impl Stream for SchemaAdapterStream {
+    type Item = datafusion::error::Result<RecordBatch, DataFusionError>;
+
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        self.input.as_mut().poll_next(cx).map(|maybe_result| {
+            maybe_result.map(|batch| batch.and_then(|batch| self.adapt_batch(batch)))
         })
     }
 }
