@@ -16,8 +16,17 @@ UUID 'E3D8BFAC-75FA-4130-8668-B6CFF93F88E2' (
 );
 
 HTTP_HANDLER push_event
+POLICY allow_public_access
 AS
 $$
     INSERT into app_analytics.raw_events (payload_data)
         SELECT body FROM temporary.input;
-$$
+$$;
+
+-- If an anonymous authentication policy exists, anyone can connect to the
+-- server.
+AUTHENTICATION_POLICY anonymous_auth_policy
+    TYPE = anonymous;
+
+AUTHORIZATION_POLICY allow_public_access
+    permissive_expr = TRUE;

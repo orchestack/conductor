@@ -6,7 +6,7 @@ use sqlparser::{
     dialect::GenericDialect,
     keywords::Keyword,
     parser::Parser,
-    tokenizer::{Token, TokenWithLocation, Tokenizer},
+    tokenizer::{self, Token, TokenWithLocation, Tokenizer},
 };
 
 use crate::{Result, ScoreError};
@@ -16,6 +16,8 @@ pub enum Statement {
     NamespaceDecl(String),
     TableDecl(TableDecl),
     HttpHandlerDecl(HttpHandlerDecl),
+    AuthenticationPolicyDecl(AuthenticationPolicyDecl),
+    AuthorizationPolicyDecl(AuthorizationPolicyDecl),
 }
 
 #[derive(Debug)]
@@ -35,7 +37,20 @@ pub struct ColumnDef {
 #[derive(Debug)]
 pub struct HttpHandlerDecl {
     pub name: String,
+    pub policy: String,
     pub body: sql::parser::Statement,
+}
+
+#[derive(Debug)]
+pub struct AuthenticationPolicyDecl {
+    pub name: String,
+    pub typ: String,
+}
+
+#[derive(Debug)]
+pub struct AuthorizationPolicyDecl {
+    pub name: String,
+    pub permissive_expr: sqlparser::ast::Expr,
 }
 
 pub struct ScoreParser<'a> {
@@ -97,7 +112,12 @@ impl<'a> ScoreParser<'a> {
     }
 
     fn parse_statement(&mut self) -> Result<Statement> {
-        let entity_types = vec!["TABLE", "HTTP_HANDLER"];
+        let entity_types = vec![
+            "TABLE",
+            "HTTP_HANDLER",
+            "AUTHENTICATION_POLICY",
+            "AUTHORIZATION_POLICY",
+        ];
 
         if let Token::Word(w) = self.peek_token().token {
             match w.value.as_ref() {
@@ -108,6 +128,14 @@ impl<'a> ScoreParser<'a> {
                 "HTTP_HANDLER" => {
                     self.parser.next_token();
                     return self.parse_http_handler_decl();
+                }
+                "AUTHENTICATION_POLICY" => {
+                    self.parser.next_token();
+                    return self.parse_authentication_policy_decl();
+                }
+                "AUTHORIZATION_POLICY" => {
+                    self.parser.next_token();
+                    return self.parse_authorization_policy_decl();
                 }
                 _ => {}
             }
@@ -238,8 +266,15 @@ impl<'a> ScoreParser<'a> {
 
     fn parse_http_handler_decl(&mut self) -> Result<Statement> {
         let name = self.parser.parse_identifier()?;
-        self.parser.expect_keyword(Keyword::AS)?;
 
+        self.parser.expect_token(&Token::Word(tokenizer::Word {
+            value: "POLICY".to_string(),
+            quote_style: None,
+            keyword: Keyword::NoKeyword,
+        }))?;
+        let policy = self.parser.parse_identifier()?;
+
+        self.parser.expect_keyword(Keyword::AS)?;
         let body = match self.peek_token().token {
             Token::DollarQuotedString(DollarQuotedString { value, .. }) => {
                 self.parser.next_token();
@@ -252,6 +287,7 @@ impl<'a> ScoreParser<'a> {
 
         let handler_decl = HttpHandlerDecl {
             name: name.value,
+            policy: policy.value,
             body,
         };
         Ok(Statement::HttpHandlerDecl(handler_decl))
@@ -259,6 +295,44 @@ impl<'a> ScoreParser<'a> {
 
     fn peek_token(&self) -> TokenWithLocation {
         self.parser.peek_token()
+    }
+
+    fn parse_authentication_policy_decl(&mut self) -> Result<Statement> {
+        let name = self.parser.parse_identifier()?;
+
+        self.parser.expect_keyword(Keyword::TYPE)?;
+        self.parser.expect_token(&Token::Eq)?;
+        self.parser.expect_token(&Token::Word(tokenizer::Word {
+            value: "anonymous".to_string(),
+            quote_style: None,
+            keyword: Keyword::NoKeyword,
+        }))?;
+
+        Ok(Statement::AuthenticationPolicyDecl(
+            AuthenticationPolicyDecl {
+                name: name.value,
+                typ: "anonymous".to_string(),
+            },
+        ))
+    }
+
+    fn parse_authorization_policy_decl(&mut self) -> Result<Statement> {
+        let name = self.parser.parse_identifier()?;
+
+        self.parser.expect_token(&Token::Word(tokenizer::Word {
+            value: "permissive_expr".to_string(),
+            quote_style: None,
+            keyword: Keyword::NoKeyword,
+        }))?;
+        self.parser.expect_token(&Token::Eq)?;
+        let permissive_expr = self.parser.parse_expr()?;
+
+        Ok(Statement::AuthorizationPolicyDecl(
+            AuthorizationPolicyDecl {
+                name: name.value,
+                permissive_expr,
+            },
+        ))
     }
 
     fn expected<T>(&self, expected: &str, found: TokenWithLocation) -> Result<T> {
