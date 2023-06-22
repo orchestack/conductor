@@ -33,7 +33,7 @@ HTTP_HANDLER push_event
 AS
 $$
     INSERT into raw_events (payload_data)
-        SELECT body FROM input();
+        SELECT body FROM input;
 $$
 ```
 
