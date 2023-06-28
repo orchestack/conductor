@@ -120,6 +120,7 @@ impl ScoreCompiler {
                             HttpHandler {
                                 namespace: ns.name.clone(),
                                 name: handler_decl.name.clone(),
+                                policy: handler_decl.policy.clone(),
                                 body: match &handler_decl.body {
                                     sql::parser::Statement::Statement(st) => st.to_string(),
                                 },
@@ -159,6 +160,7 @@ impl ScoreCompiler {
                             AuthorizationPolicy {
                                 namespace: ns.name.clone(),
                                 name: policy_decl.name.clone(),
+                                permissive_expr: policy_decl.permissive_expr.clone(),
                             },
                         );
                     }

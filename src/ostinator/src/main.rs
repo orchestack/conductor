@@ -9,13 +9,17 @@ use axum::response::IntoResponse;
 use axum::routing::post;
 use axum::Router;
 use axum_macros::debug_handler;
+use catalog::auth::AuthEval;
+use catalog::AuthenticationPolicyType;
 use clap::Parser;
+
 use datafusion::catalog::schema::{MemorySchemaProvider, SchemaProvider};
+
 use ensemble_x::storage::ObjectStore;
 use object_store::aws::AmazonS3Builder;
 use object_store::gcp::GoogleCloudStorageBuilder;
 use object_store::prefix::PrefixStore;
-use tracing::info;
+use tracing::{info, trace};
 use url::Url;
 
 use crate::http_handler_input::HttpHandlerInput;
@@ -61,6 +65,19 @@ async fn http_handler(
     // Let's load the catalog.
     let ensemble = state.ensemble_x().await.unwrap();
     let catalog = ensemble.catalog().unwrap();
+
+    let anonymous_access_allowed = catalog
+        .namespaces
+        .get(&ns_name)
+        .unwrap()
+        .authentication_policies
+        .values()
+        .any(|p| matches!(p.typ, AuthenticationPolicyType::Anonymous()));
+    if !anonymous_access_allowed {
+        trace!("anonymous access not allowed");
+        return (StatusCode::UNAUTHORIZED, ());
+    }
+
     let handler = catalog
         .namespaces
         .get(&ns_name)
@@ -69,8 +86,22 @@ async fn http_handler(
         .get(&handler_name)
         .unwrap();
 
+    let policy = catalog
+        .namespaces
+        .get(&ns_name)
+        .unwrap()
+        .authorization_policies
+        .get(&handler.policy)
+        .unwrap();
+
+    let auth_eval = AuthEval::default();
+    if !auth_eval.eval_policy(policy) {
+        return (StatusCode::UNAUTHORIZED, ());
+    }
+
     info!(?handler, "http handler");
 
+    // TODO: Load into session only objects that are needed by the http handler.
     let mut session = sql::SqlSession::new(ensemble).await.unwrap();
 
     let schema = MemorySchemaProvider::new();

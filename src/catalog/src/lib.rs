@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+pub mod auth;
 pub mod diff;
 pub mod edit;
 
@@ -31,6 +32,10 @@ impl Namespace {
     fn get_authentication_policy_by_name(&self, name: &str) -> Option<&AuthenticationPolicy> {
         self.authentication_policies.get(name)
     }
+
+    fn get_authorization_policy_by_name(&self, name: &str) -> Option<&AuthorizationPolicy> {
+        self.authorization_policies.get(name)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,6 +64,7 @@ pub struct HttpHandler {
     pub namespace: String,
     pub name: String,
     pub body: String,
+    pub policy: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,4 +83,5 @@ pub struct AuthenticationPolicy {
 pub struct AuthorizationPolicy {
     pub namespace: String,
     pub name: String,
+    pub permissive_expr: sqlparser::ast::Expr,
 }

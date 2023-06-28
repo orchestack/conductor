@@ -7,6 +7,7 @@ publish = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+datafusion = "25.0.0"
 serde = { version = "1.0.163", features = ["derive"] }
 sqlparser = { version = "0.33.0", features = ["serde"] }
 thiserror = "1.0.40"

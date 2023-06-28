@@ -114,6 +114,7 @@ impl Diff {
                 namespace: a.name.clone(),
                 name: handler.name.clone(),
                 body: handler.body.clone(),
+                policy: handler.policy.clone(),
             }));
         }
 
@@ -128,6 +129,7 @@ impl Diff {
                 namespace: b.name.clone(),
                 name: handler.name.clone(),
                 body: handler.body.clone(),
+                policy: handler.policy.clone(),
             }));
         }
 
@@ -168,15 +170,16 @@ impl Diff {
             .difference(&b_authorization_policy_names)
             .collect::<Vec<_>>();
         for authorization_policy_name in drop_authorization_policies {
-            edits.push(Edit::DropAuthorizationPolicy(AuthorizationPolicy {
-                namespace: a.name.clone(),
-                name: (*authorization_policy_name).clone(),
-            }));
+            let policy = a
+                .get_authorization_policy_by_name(authorization_policy_name)
+                .unwrap();
+            edits.push(Edit::DropAuthorizationPolicy(policy.clone()));
         }
-        for authorization_policy_name in b.authorization_policies.keys() {
+        for authorization_policy_name in b.authorization_policies.values() {
             edits.push(Edit::ReplaceAuthorizationPolicy(AuthorizationPolicy {
                 namespace: a.name.clone(),
-                name: (*authorization_policy_name).clone(),
+                name: authorization_policy_name.name.clone(),
+                permissive_expr: authorization_policy_name.permissive_expr.clone(),
             }));
         }
 
