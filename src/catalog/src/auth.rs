@@ -1,7 +1,11 @@
 use std::sync::Arc;
 
 use datafusion::{
-    arrow::{datatypes::DataType, record_batch::RecordBatch},
+    arrow::{
+        array::BooleanArray,
+        datatypes::{DataType, Field, Schema},
+        record_batch::RecordBatch,
+    },
     common::DFSchema,
     config::ConfigOptions,
     error::Result as DFResult,
@@ -52,8 +56,15 @@ impl AuthEval {
         let auth_context = AuthorizationExprContext::default();
         let mut planner_context = PlannerContext::default();
         let sql_to_rel = SqlToRel::new(&auth_context);
-        let df_schema = DFSchema::empty();
-        let schema: Arc<datafusion::arrow::datatypes::Schema> = Arc::new(df_schema.clone().into());
+        let placeholder_a = Field::new("placeholder_a", DataType::Boolean, true);
+        let schema = Arc::new(Schema::new(vec![placeholder_a]));
+        let df_schema = DFSchema::try_from((*schema).clone()).unwrap();
+        let placeholder_batch = RecordBatch::try_new(
+            schema.clone(),
+            vec![Arc::new(BooleanArray::from(vec![None]))],
+        )
+        .unwrap();
+
         let rel_expr = sql_to_rel
             .sql_to_expr(
                 policy.permissive_expr.clone(),
@@ -64,11 +75,59 @@ impl AuthEval {
         let phys_expr =
             create_physical_expr(&rel_expr, &df_schema, &schema, &ExecutionProps::default())
                 .unwrap();
-        let eval = phys_expr.evaluate(&RecordBatch::new_empty(schema)).unwrap();
+        let eval = phys_expr.evaluate(&placeholder_batch).unwrap();
 
-        matches!(
-            eval,
-            ColumnarValue::Scalar(ScalarValue::Boolean(Some(true)))
-        )
+        match eval {
+            ColumnarValue::Scalar(ScalarValue::Boolean(Some(true))) => true,
+            ColumnarValue::Array(array_ref) => {
+                if let Some(array_ref) = array_ref.as_any().downcast_ref::<BooleanArray>() {
+                    array_ref.value(0)
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_auth_eval() {
+        use super::AuthEval;
+
+        let auth_eval = AuthEval::default();
+
+        // Test always true policy.
+        assert!(auth_eval.eval_policy(&policy_for_expr("true")));
+
+        // Test always false policy.
+        assert!(!auth_eval.eval_policy(&policy_for_expr("false")));
+
+        // Test a non-scalar policy.
+        assert!(auth_eval.eval_policy(&policy_for_expr("1 = 1")));
+
+        // Test a bad policy.
+        assert!(!auth_eval.eval_policy(&policy_for_expr("1 + 1")));
+    }
+
+    fn policy_for_expr(expr: &str) -> AuthorizationPolicy {
+        AuthorizationPolicy {
+            permissive_expr: parse_expr(expr),
+            namespace: "a namespace".to_string(),
+            name: "policy name".to_string(),
+        }
+    }
+
+    fn parse_expr(expr: &str) -> sqlparser::ast::Expr {
+        use sqlparser::dialect::GenericDialect;
+        use sqlparser::parser::Parser;
+
+        let dialect = GenericDialect {};
+        let mut parser = Parser::new(&dialect).try_with_sql(expr).unwrap();
+        parser.parse_expr().unwrap()
     }
 }
