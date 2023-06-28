@@ -15,6 +15,8 @@ pub struct Namespace {
     pub name: String,
     pub tables: HashMap<String, Table>,
     pub http_handlers: HashMap<String, HttpHandler>,
+    pub authentication_policies: HashMap<String, AuthenticationPolicy>,
+    pub authorization_policies: HashMap<String, AuthorizationPolicy>,
 }
 
 impl Namespace {
@@ -24,6 +26,10 @@ impl Namespace {
 
     fn get_http_handler_by_name(&self, name: &str) -> Option<&HttpHandler> {
         self.http_handlers.get(name)
+    }
+
+    fn get_authentication_policy_by_name(&self, name: &str) -> Option<&AuthenticationPolicy> {
+        self.authentication_policies.get(name)
     }
 }
 
@@ -53,4 +59,22 @@ pub struct HttpHandler {
     pub namespace: String,
     pub name: String,
     pub body: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum AuthenticationPolicyType {
+    Anonymous(),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthenticationPolicy {
+    pub namespace: String,
+    pub name: String,
+    pub typ: AuthenticationPolicyType,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthorizationPolicy {
+    pub namespace: String,
+    pub name: String,
 }

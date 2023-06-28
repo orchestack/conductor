@@ -167,6 +167,38 @@ impl EnsembleX {
                     .http_handlers
                     .remove(&http_handler.name);
             }
+            Edit::ReplaceAuthenticationPolicy(policy) => {
+                self.catalog
+                    .namespaces
+                    .get_mut(policy.namespace.as_str())
+                    .unwrap()
+                    .authentication_policies
+                    .insert(policy.name.clone(), policy.clone());
+            }
+            Edit::DropAuthenticationPolicy(policy) => {
+                self.catalog
+                    .namespaces
+                    .get_mut(policy.namespace.as_str())
+                    .unwrap()
+                    .authentication_policies
+                    .remove(&policy.name);
+            }
+            Edit::ReplaceAuthorizationPolicy(policy) => {
+                self.catalog
+                    .namespaces
+                    .get_mut(policy.namespace.as_str())
+                    .unwrap()
+                    .authorization_policies
+                    .insert(policy.name.clone(), policy.clone());
+            }
+            Edit::DropAuthorizationPolicy(policy) => {
+                self.catalog
+                    .namespaces
+                    .get_mut(policy.namespace.as_str())
+                    .unwrap()
+                    .authorization_policies
+                    .remove(&policy.name);
+            }
             edit => {
                 todo!("edit not implemented yet: {:?}", edit);
             }

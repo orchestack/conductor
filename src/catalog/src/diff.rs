@@ -5,7 +5,9 @@ use sqlparser::ast::{
 };
 use thiserror::Error;
 
-use crate::{edit::Edit, Catalog, HttpHandler, Namespace, Table};
+use crate::{
+    edit::Edit, AuthenticationPolicy, AuthorizationPolicy, Catalog, HttpHandler, Namespace, Table,
+};
 
 #[derive(Error, Debug)]
 pub enum DiffError {
@@ -131,6 +133,52 @@ impl Diff {
 
         // Handlers that exist in both A and B, we need to diff them.
         // TODO: diff handlers
+
+        // Authentication policies.
+        let a_authentication_policy_names =
+            a.authentication_policies.keys().collect::<HashSet<_>>();
+        let b_authentication_policy_names =
+            b.authentication_policies.keys().collect::<HashSet<_>>();
+
+        // Authentication policies that exist in A but not B, we need to drop them.
+        let drop_authentication_policies = a_authentication_policy_names
+            .difference(&b_authentication_policy_names)
+            .collect::<Vec<_>>();
+        for authentication_policy_name in drop_authentication_policies {
+            let policy = a
+                .get_authentication_policy_by_name(authentication_policy_name)
+                .unwrap();
+
+            edits.push(Edit::DropAuthenticationPolicy(policy.clone()));
+        }
+        for authentication_policy in b.authentication_policies.values() {
+            edits.push(Edit::ReplaceAuthenticationPolicy(AuthenticationPolicy {
+                namespace: b.name.clone(),
+                name: authentication_policy.name.clone(),
+                typ: authentication_policy.typ.clone(),
+            }));
+        }
+
+        // Authorization policies.
+        let a_authorization_policy_names = a.authorization_policies.keys().collect::<HashSet<_>>();
+        let b_authorization_policy_names = b.authorization_policies.keys().collect::<HashSet<_>>();
+
+        // authorization policies that exist in A but not B, we need to drop them.
+        let drop_authorization_policies = a_authorization_policy_names
+            .difference(&b_authorization_policy_names)
+            .collect::<Vec<_>>();
+        for authorization_policy_name in drop_authorization_policies {
+            edits.push(Edit::DropAuthorizationPolicy(AuthorizationPolicy {
+                namespace: a.name.clone(),
+                name: (*authorization_policy_name).clone(),
+            }));
+        }
+        for authorization_policy_name in b.authorization_policies.keys() {
+            edits.push(Edit::ReplaceAuthorizationPolicy(AuthorizationPolicy {
+                namespace: a.name.clone(),
+                name: (*authorization_policy_name).clone(),
+            }));
+        }
 
         Ok(edits)
     }

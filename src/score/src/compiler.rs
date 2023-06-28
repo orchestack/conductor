@@ -1,6 +1,9 @@
 use std::collections::HashSet;
 
-use catalog::{Catalog, Column, HttpHandler, Namespace, Table};
+use catalog::{
+    AuthenticationPolicy, AuthenticationPolicyType, AuthorizationPolicy, Catalog, Column,
+    HttpHandler, Namespace, Table,
+};
 
 use crate::parser::Statement;
 use crate::{Result, ScoreError, ScorePkg};
@@ -52,6 +55,7 @@ impl ScoreCompiler {
 
             for stmt in stmt_iter {
                 match stmt {
+                    Statement::NamespaceDecl(_) => unreachable!(),
                     Statement::TableDecl(table_decl) => {
                         let mut table = Table {
                             namespace: ns.name.clone(),
@@ -122,7 +126,42 @@ impl ScoreCompiler {
                             },
                         );
                     }
-                    _ => unreachable!(),
+                    Statement::AuthenticationPolicyDecl(policy_decl) => {
+                        if ns.authentication_policies.contains_key(&policy_decl.name) {
+                            return Err(ScoreError::CompileError {
+                                error: "conflicting authentication policy declaration".into(),
+                                path: file.path.clone(),
+                            });
+                        }
+
+                        ns.authentication_policies.insert(
+                            policy_decl.name.clone(),
+                            AuthenticationPolicy {
+                                namespace: ns.name.clone(),
+                                name: policy_decl.name.clone(),
+                                typ: match policy_decl.typ.as_str() {
+                                    "anonymous" => AuthenticationPolicyType::Anonymous(),
+                                    _ => unimplemented!(),
+                                },
+                            },
+                        );
+                    }
+                    Statement::AuthorizationPolicyDecl(policy_decl) => {
+                        if ns.authorization_policies.contains_key(&policy_decl.name) {
+                            return Err(ScoreError::CompileError {
+                                error: "conflicting authorization policy declaration".into(),
+                                path: file.path.clone(),
+                            });
+                        }
+
+                        ns.authorization_policies.insert(
+                            policy_decl.name.clone(),
+                            AuthorizationPolicy {
+                                namespace: ns.name.clone(),
+                                name: policy_decl.name.clone(),
+                            },
+                        );
+                    }
                 }
             }
         }
