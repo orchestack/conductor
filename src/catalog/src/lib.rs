@@ -1,14 +1,99 @@
 use std::collections::HashMap;
 
+use edit::Edit;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 pub mod auth;
 pub mod diff;
 pub mod edit;
 
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("invalid edit: {0}")]
+    InvalidEdit(String),
+}
+
+type Result<T> = std::result::Result<T, Error>;
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Catalog {
     pub namespaces: HashMap<String, Namespace>,
+}
+
+impl Catalog {
+    pub fn apply(&mut self, edit: &Edit) -> Result<()> {
+        match edit {
+            Edit::CreateNamespace { name } => {
+                self.namespaces.insert(
+                    name.clone(),
+                    Namespace {
+                        name: name.clone(),
+                        ..Default::default()
+                    },
+                );
+            }
+            Edit::CreateTable(table) => {
+                self.namespaces
+                    .get_mut(table.namespace.as_str())
+                    .unwrap()
+                    .tables
+                    .insert(table.name.clone(), table.clone());
+            }
+            Edit::DropTable(table) => {
+                self.namespaces
+                    .get_mut(table.namespace.as_str())
+                    .unwrap()
+                    .tables
+                    .remove(&table.name);
+            }
+            Edit::ReplaceHttpHandler(handler) => {
+                self.namespaces
+                    .get_mut(handler.namespace.as_str())
+                    .unwrap()
+                    .http_handlers
+                    .insert(handler.name.clone(), handler.clone());
+            }
+            Edit::DropHttpHandler(handler) => {
+                self.namespaces
+                    .get_mut(handler.namespace.as_str())
+                    .unwrap()
+                    .http_handlers
+                    .remove(&handler.name);
+            }
+            Edit::ReplaceAuthenticationPolicy(policy) => {
+                self.namespaces
+                    .get_mut(policy.namespace.as_str())
+                    .unwrap()
+                    .authentication_policies
+                    .insert(policy.name.clone(), policy.clone());
+            }
+            Edit::DropAuthenticationPolicy(policy) => {
+                self.namespaces
+                    .get_mut(policy.namespace.as_str())
+                    .unwrap()
+                    .authentication_policies
+                    .remove(&policy.name);
+            }
+            Edit::ReplaceAuthorizationPolicy(policy) => {
+                self.namespaces
+                    .get_mut(policy.namespace.as_str())
+                    .unwrap()
+                    .authorization_policies
+                    .insert(policy.name.clone(), policy.clone());
+            }
+            Edit::DropAuthorizationPolicy(policy) => {
+                self.namespaces
+                    .get_mut(policy.namespace.as_str())
+                    .unwrap()
+                    .authorization_policies
+                    .remove(&policy.name);
+            }
+            Edit::Ddl(_) => todo!(),
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]

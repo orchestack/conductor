@@ -37,6 +37,8 @@ pub enum Error {
     IoError(#[from] std::io::Error),
     #[error("delta table error: {0}")]
     DeltaTable(#[from] deltalake::DeltaTableError),
+    #[error("catalog error: {0}")]
+    CatalogError(#[from] catalog::Error),
     #[error("ensemble error: {0}")]
     Error(String),
 }
@@ -96,15 +98,6 @@ impl EnsembleX {
 
     pub async fn apply(&mut self, edit: &Edit) -> Result<(), Error> {
         match edit {
-            Edit::CreateNamespace { name } => {
-                self.catalog.namespaces.insert(
-                    name.clone(),
-                    catalog::Namespace {
-                        name: name.clone(),
-                        ..Default::default()
-                    },
-                );
-            }
             Edit::CreateTable(table) => {
                 let delta_columns = table
                     .columns
@@ -128,79 +121,28 @@ impl EnsembleX {
                     .with_metadata(table_metadata)
                     .with_object_store(delta_storage);
 
-                self.catalog
-                    .namespaces
-                    .get_mut(table.namespace.as_str())
-                    .unwrap()
-                    .tables
-                    .insert(table.name.clone(), table.clone());
+                self.catalog.apply(edit)?;
 
                 self.pending_actions
                     .push(Action::CreateTable(create_builder));
             }
             Edit::DropTable(table) => {
-                self.catalog
-                    .namespaces
-                    .get_mut(table.namespace.as_str())
-                    .unwrap()
-                    .tables
-                    .remove(&table.name);
+                self.catalog.apply(edit)?;
 
                 self.pending_actions.push(Action::DropTable {
                     namespace: table.namespace.clone(),
                     name: table.name.clone(),
                 });
             }
-            Edit::ReplaceHttpHandler(http_handler) => {
-                self.catalog
-                    .namespaces
-                    .get_mut(http_handler.namespace.as_str())
-                    .unwrap()
-                    .http_handlers
-                    .insert(http_handler.name.clone(), http_handler.clone());
-            }
-            Edit::DropHttpHandler(http_handler) => {
-                self.catalog
-                    .namespaces
-                    .get_mut(http_handler.namespace.as_str())
-                    .unwrap()
-                    .http_handlers
-                    .remove(&http_handler.name);
-            }
-            Edit::ReplaceAuthenticationPolicy(policy) => {
-                self.catalog
-                    .namespaces
-                    .get_mut(policy.namespace.as_str())
-                    .unwrap()
-                    .authentication_policies
-                    .insert(policy.name.clone(), policy.clone());
-            }
-            Edit::DropAuthenticationPolicy(policy) => {
-                self.catalog
-                    .namespaces
-                    .get_mut(policy.namespace.as_str())
-                    .unwrap()
-                    .authentication_policies
-                    .remove(&policy.name);
-            }
-            Edit::ReplaceAuthorizationPolicy(policy) => {
-                self.catalog
-                    .namespaces
-                    .get_mut(policy.namespace.as_str())
-                    .unwrap()
-                    .authorization_policies
-                    .insert(policy.name.clone(), policy.clone());
-            }
-            Edit::DropAuthorizationPolicy(policy) => {
-                self.catalog
-                    .namespaces
-                    .get_mut(policy.namespace.as_str())
-                    .unwrap()
-                    .authorization_policies
-                    .remove(&policy.name);
-            }
-            edit => {
-                todo!("edit not implemented yet: {:?}", edit);
+            edit @ Edit::CreateNamespace { .. }
+            | edit @ Edit::ReplaceHttpHandler(_)
+            | edit @ Edit::DropHttpHandler(_)
+            | edit @ Edit::ReplaceAuthenticationPolicy(_)
+            | edit @ Edit::DropAuthenticationPolicy(_)
+            | edit @ Edit::ReplaceAuthorizationPolicy(_)
+            | edit @ Edit::DropAuthorizationPolicy(_) => self.catalog.apply(edit)?,
+            Edit::Ddl(_) => {
+                return Err(Error::Error("DDL not supported".to_string()));
             }
         }
 
