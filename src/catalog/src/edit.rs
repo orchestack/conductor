@@ -1,7 +1,5 @@
 use std::fmt::Display;
 
-use sqlparser::ast::Statement;
-
 use crate::{AuthenticationPolicy, AuthorizationPolicy, HttpHandler, Table};
 
 #[derive(Debug)]
@@ -19,8 +17,6 @@ pub enum Edit {
 
     ReplaceAuthorizationPolicy(AuthorizationPolicy),
     DropAuthorizationPolicy(AuthorizationPolicy),
-
-    Ddl(Statement),
 }
 
 impl Display for Edit {
@@ -39,14 +35,6 @@ impl Display for Edit {
 
             policy @ Edit::ReplaceAuthorizationPolicy(_) => write!(f, "REPLACE {:?}", policy),
             policy @ Edit::DropAuthorizationPolicy(_) => write!(f, "DROP {:?}", policy),
-
-            Edit::Ddl(stmt) => write!(f, "{}", stmt),
         }
-    }
-}
-
-impl From<Statement> for Edit {
-    fn from(value: Statement) -> Self {
-        Self::Ddl(value)
     }
 }

@@ -89,7 +89,6 @@ impl Catalog {
                     .authorization_policies
                     .remove(&policy.name);
             }
-            Edit::Ddl(_) => todo!(),
         }
 
         Ok(())

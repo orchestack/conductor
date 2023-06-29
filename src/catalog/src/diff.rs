@@ -1,8 +1,6 @@
 use std::collections::HashSet;
 
-use sqlparser::ast::{
-    AlterColumnOperation, AlterTableOperation, ColumnDef, Ident, ObjectName, Statement,
-};
+use sqlparser::ast::{AlterColumnOperation, AlterTableOperation, ColumnDef, Ident};
 use thiserror::Error;
 
 use crate::{
@@ -189,21 +187,22 @@ impl Diff {
     fn diff_table(&self, a: &Table, b: &Table) -> Result<Vec<Edit>, DiffError> {
         assert_eq!(a.uuid, b.uuid, "table uuids must match");
 
-        let mut stmts = vec![];
+        let stmts = vec![];
         let mut alter_ops = Vec::new();
-        let mut table_name = ObjectName(vec![identifier(&a.name)]);
+        // let mut table_name = ObjectName(vec![identifier(&a.name)]);
 
         if a.name != b.name {
-            table_name = ObjectName(vec![identifier(&b.name)]);
-            stmts.push(
-                Statement::AlterTable {
-                    name: ObjectName(vec![identifier(&a.name)]),
-                    operation: AlterTableOperation::RenameTable {
-                        table_name: table_name.clone(),
-                    },
-                }
-                .into(),
-            );
+            todo!("rename table");
+            // table_name = ObjectName(vec![identifier(&b.name)]);
+            // stmts.push(
+            //     Statement::AlterTable {
+            //         name: ObjectName(vec![identifier(&a.name)]),
+            //         operation: AlterTableOperation::RenameTable {
+            //             table_name: table_name.clone(),
+            //         },
+            //     }
+            //     .into(),
+            // );
         }
 
         let a_column_ids = a.columns.iter().map(|v| v.uid).collect::<HashSet<_>>();
@@ -262,14 +261,15 @@ impl Diff {
             }
         }
 
-        for alter_op in alter_ops.drain(..) {
-            stmts.push(
-                Statement::AlterTable {
-                    name: table_name.clone(),
-                    operation: alter_op,
-                }
-                .into(),
-            );
+        for _alter_op in alter_ops.drain(..) {
+            todo!();
+            // stmts.push(
+            //     Statement::AlterTable {
+            //         name: table_name.clone(),
+            //         operation: alter_op,
+            //     }
+            //     .into(),
+            // );
         }
 
         Ok(stmts)

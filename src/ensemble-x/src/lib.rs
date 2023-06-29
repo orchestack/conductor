@@ -141,9 +141,6 @@ impl EnsembleX {
             | edit @ Edit::DropAuthenticationPolicy(_)
             | edit @ Edit::ReplaceAuthorizationPolicy(_)
             | edit @ Edit::DropAuthorizationPolicy(_) => self.catalog.apply(edit)?,
-            Edit::Ddl(_) => {
-                return Err(Error::Error("DDL not supported".to_string()));
-            }
         }
 
         Ok(())
